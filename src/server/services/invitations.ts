@@ -6,6 +6,7 @@ import { type Actor, AuthzError, assertAdmin } from "@/server/authz";
 import { hashPassword } from "@/server/auth/password";
 import { createSession } from "@/server/auth/sessions";
 import { hashToken, newToken, normalizeEmail } from "@/server/auth/tokens";
+import { ensureUserDefaults } from "./categories";
 
 export const INVITATION_DAYS = 7;
 
@@ -130,6 +131,8 @@ export async function acceptInvitation(
     .insert(users)
     .values({ householdId: inv.householdId, name: input.name.trim(), email, passwordHash, role: "miembro" })
     .returning({ id: users.id, name: users.name, email: users.email, role: users.role });
+
+  await ensureUserDefaults(db, user.id);
 
   const used = await db
     .update(invitations)

@@ -4,6 +4,7 @@ import { households, users } from "@/server/db/schema";
 import { audit } from "@/server/audit";
 import type { Actor } from "@/server/authz";
 import { normalizeEmail } from "@/server/auth/tokens";
+import { ensureUserDefaults } from "./categories";
 import { issuePasswordReset } from "./password-reset";
 
 export type Member = {
@@ -60,6 +61,8 @@ export async function createHouseholdWithAdmin(
     .insert(users)
     .values({ householdId: household.id, name: input.adminName.trim(), email, role: "admin" })
     .returning({ id: users.id, name: users.name, email: users.email, role: users.role });
+
+  await ensureUserDefaults(db, admin.id);
 
   await audit(db, {
     householdId: household.id,

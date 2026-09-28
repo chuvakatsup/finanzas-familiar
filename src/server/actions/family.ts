@@ -5,20 +5,14 @@ import { z } from "zod";
 import { getDb } from "@/server/db";
 import { serverEnv } from "@/server/env";
 import { requireUser } from "@/server/auth/current";
-import { AuthzError } from "@/server/authz";
 import { createInvitation, revokeInvitation } from "@/server/services/invitations";
 import { createPasswordResetForMember } from "@/server/services/password-reset";
 import { createInvitationSchema } from "@/lib/schemas/auth";
 import type { FormState } from "@/lib/form-state";
+import { friendlyError } from "./helpers";
 
 function link(path: string) {
   return new URL(path, serverEnv().APP_URL).toString();
-}
-
-function friendlyError(e: unknown): FormState {
-  if (e instanceof AuthzError) return { message: e.message };
-  console.error(e);
-  return { message: "Algo salió mal. Intenta de nuevo en un momento." };
 }
 
 export async function createInvitationAction(_prev: FormState, formData: FormData): Promise<FormState> {

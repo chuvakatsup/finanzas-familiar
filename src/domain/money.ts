@@ -77,3 +77,11 @@ export function splitEvenly(total: Cents, parts: number): Cents[] {
   out[parts - 1] = total - base * (parts - 1);
   return out;
 }
+
+/** Centavos → texto para un campo de formulario ("1234.50"), sin pasar por flotantes. */
+export function centsToInput(cents: Cents): string {
+  assertCents(cents);
+  const sign = cents < 0 ? "-" : "";
+  const abs = Math.abs(cents);
+  return `${sign}${Math.trunc(abs / 100)}.${String(abs % 100).padStart(2, "0")}`;
+}

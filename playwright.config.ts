@@ -21,7 +21,7 @@ export default defineConfig({
   },
   projects: [{ name: "movil-360", use: { browserName: "chromium" } }],
   webServer: {
-    command: `pnpm build && pnpm start --port ${PORT}`,
+    command: "pnpm build && node scripts/serve-standalone.mjs",
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 240_000,
@@ -29,6 +29,7 @@ export default defineConfig({
       DATABASE_URL: TEST_DB,
       APP_URL: `http://localhost:${PORT}`,
       COOKIE_SECURE: "false",
+      PORT: String(PORT),
     },
   },
 });

@@ -3,11 +3,12 @@ import { getDb } from "@/server/db";
 import { households, users } from "@/server/db/schema";
 import { hashPassword } from "@/server/auth/password";
 import type { Actor } from "@/server/authz";
+import { ensureUserDefaults } from "@/server/services/categories";
 
 /** Borra todos los datos (se llama en beforeEach). */
 export async function resetDb() {
   await getDb().execute(sql`
-    truncate table audit_log, auth_attempts, password_reset_tokens, invitations, sessions, users, households
+    truncate table transactions, categories, accounts, audit_log, auth_attempts, password_reset_tokens, invitations, sessions, users, households
     restart identity cascade
   `);
 }
@@ -33,5 +34,7 @@ export async function makeHousehold(name = "Familia") {
     role: u.role,
     email: u.email,
   });
+  await ensureUserDefaults(db, admin.id);
+  await ensureUserDefaults(db, member.id);
   return { household: h, admin: toActor(admin), member: toActor(member) };
 }

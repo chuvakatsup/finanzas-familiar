@@ -27,21 +27,34 @@ PWA familiar (Next.js 16) para responder "¿me alcanza el dinero este mes?". Usu
 - Zona horaria fija `America/Mazatlan` (`todayIso()`); columnas `date` para fechas sin hora.
 - Sin doble conteo: gasto con tarjeta cuenta al comprar; pagar la tarjeta es transferencia. MSI cuenta una mensualidad por mes. Compras/préstamos ya iniciados guardan plazo total e histórico (`pagado_previo`) sin afectar meses pasados.
 
+## Cuentas y movimientos (fase 2)
+- `accounts.opening_balance` + movimientos = saldo. **El saldo nunca se guarda**, se calcula (`balanceSql` en `services/accounts.ts`, `accountBalance` en `domain/accounts.ts`). Positivo = tienes; negativo = debes (crédito/préstamo).
+- `transactions`: `amount` siempre > 0; la dirección la dan `from_account_id` (sale) y `to_account_id` (entra). Gasto = solo from; ingreso = solo to; transferencia/pago = ambos; `ajuste` = uno de los dos (corrección de saldo, no es gasto ni ingreso).
+- Transferencia hacia tarjeta ⇒ `pago_tarjeta` (`transferKind`). `summarize()` solo cuenta `gasto` como gasto.
+- Borrado de movimientos = suave (`deleted_at`) para "Deshacer". Cuentas y categorías se **archivan**, no se borran.
+- `ensureUserDefaults()` crea categorías predeterminadas y cuenta "Efectivo" al dar de alta a alguien (invitación, CLI, seed).
+- Ids de la URL: `assertUuid()` antes de consultar (mal formado ⇒ "no encontrado", no error 500).
+- Ojo Drizzle: dentro de `sql` usado en un `select`, las columnas salen sin tabla; en subconsultas calificar a mano (`"accounts"."id"`).
+- Préstamos (`kind = prestamo`) aún no se pueden crear: llegan en la fase 6 con su tabla de amortización.
+
 ## UI
 - Base 18px (`html { font-size: 112.5% }`, respeta el tamaño del sistema), botones ≥48px (usamos `min-h-14`), tokens de color en `globals.css` con modo oscuro. Nunca solo color: icono + texto.
 - Componentes base en `src/components/ui.tsx`. Sin estilos inline (la CSP los bloquea).
+- Otros: `MoneyKeypad` (teclado propio), `Choice` (opción grande tipo radio), `ConfirmButton` (diálogo antes de borrar/archivar), `StickyAction` (botón principal fijo encima de la barra inferior; usar cuando la lista puede empujar "Guardar" fuera de la vista), `TxList`, `MonthNav`.
+- Tras guardar: pantalla de éxito con "Deshacer". Tras borrar: banner con "Deshacer".
+- Texto que puede ser largo (nombres de cuenta, notas): que baje de renglón (`wrap-break-word`), no `truncate`.
 - Probar a 360px de ancho (Playwright ya usa ese viewport).
 
 ## Comandos
 ```bash
 pnpm db:up            # Postgres dev (5433) y de pruebas (5434, en RAM)
 pnpm db:migrate       # aplica migraciones a la BD dev (.env.local)
-pnpm db:seed          # hijo@demo.local / demo-hijo-1234 (admin), mama@demo.local / demo-mama-1234
+pnpm db:seed          # hijo@demo.local / demo-hijo-1234 (admin), mama@demo.local / demo-mama-1234 (con cuentas y movimientos)
 pnpm dev              # http://localhost:3000
 pnpm db:generate --name <nombre>   # nueva migración tras cambiar src/server/db/schema.ts
 pnpm test             # unitarias + integración (necesita db-test arriba)
 pnpm test:unit        # solo unitarias
-pnpm e2e              # Playwright móvil 360px (build + start en :3100 contra db-test)
+pnpm e2e              # Playwright móvil 360px (build + server.js standalone en :3100 contra db-test)
 pnpm typecheck && pnpm lint
 pnpm admin:create --familia "…" --nombre "…" --correo …
 ```

@@ -54,3 +54,86 @@ describe("aislamiento entre familias", () => {
     await expect(createPasswordResetForMember(getDb(), forged, b.admin.id)).rejects.toBeInstanceOf(AuthzError);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Fase 2: cuentas, categorías y movimientos son SOLO de su dueño
+// (ni siquiera alguien de la misma familia puede verlos).
+// ---------------------------------------------------------------------------
+import { createAccount, getAccount, listAccounts, adjustBalance, setAccountArchived, updateAccount } from "@/server/services/accounts";
+import { getOwnedCategory, listCategories, updateCategory } from "@/server/services/categories";
+import {
+  createExpense,
+  createTransfer,
+  deleteTransaction,
+  getTransaction,
+  listTransactions,
+  restoreTransaction,
+  updateTransaction,
+} from "@/server/services/transactions";
+
+async function twoPeopleSameFamily() {
+  const fam = await makeHousehold("Misma");
+  const mama = fam.member;
+  const hijo = fam.admin;
+  const [efectivoMama] = await listAccounts(getDb(), mama);
+  const [efectivoHijo] = await listAccounts(getDb(), hijo);
+  const [catMama] = await listCategories(getDb(), mama, "gasto");
+  const [catHijo] = await listCategories(getDb(), hijo, "gasto");
+  const txMama = await createExpense(getDb(), mama, {
+    amount: 1000, categoryId: catMama.id, accountId: efectivoMama.id, date: "2026-09-01", note: "privado",
+  });
+  return { mama, hijo, efectivoMama, efectivoHijo, catMama, catHijo, txMama };
+}
+
+describe("aislamiento de datos financieros entre personas", () => {
+  it("nadie ve las cuentas, categorías ni movimientos de otro (aunque sea admin de la familia)", async () => {
+    const s = await twoPeopleSameFamily();
+    expect((await listAccounts(getDb(), s.hijo)).some((a) => a.id === s.efectivoMama.id)).toBe(false);
+    expect(await listTransactions(getDb(), s.hijo)).toHaveLength(0);
+    await expect(getAccount(getDb(), s.hijo, s.efectivoMama.id)).rejects.toBeInstanceOf(AuthzError);
+    await expect(getTransaction(getDb(), s.hijo, s.txMama.id)).rejects.toBeInstanceOf(AuthzError);
+    await expect(getOwnedCategory(getDb(), s.hijo, s.catMama.id)).rejects.toBeInstanceOf(AuthzError);
+    // Filtrar por la cuenta de otro no devuelve nada.
+    expect(await listTransactions(getDb(), s.hijo, { accountId: s.efectivoMama.id })).toHaveLength(0);
+  });
+
+  it("nadie puede registrar movimientos con cuentas o categorías ajenas", async () => {
+    const s = await twoPeopleSameFamily();
+    await expect(
+      createExpense(getDb(), s.hijo, { amount: 1, categoryId: s.catHijo.id, accountId: s.efectivoMama.id, date: "2026-09-01", note: null }),
+    ).rejects.toBeInstanceOf(AuthzError);
+    await expect(
+      createExpense(getDb(), s.hijo, { amount: 1, categoryId: s.catMama.id, accountId: s.efectivoHijo.id, date: "2026-09-01", note: null }),
+    ).rejects.toBeInstanceOf(AuthzError);
+    // Transferir desde mi cuenta a la de otra persona tampoco (los apoyos son otra cosa).
+    await expect(
+      createTransfer(getDb(), s.hijo, { amount: 1, fromAccountId: s.efectivoHijo.id, toAccountId: s.efectivoMama.id, date: "2026-09-01", note: null }),
+    ).rejects.toBeInstanceOf(AuthzError);
+  });
+
+  it("nadie puede editar, borrar ni restaurar lo de otro", async () => {
+    const s = await twoPeopleSameFamily();
+    await expect(
+      updateTransaction(getDb(), s.hijo, s.txMama.id, { amount: 1, categoryId: s.catHijo.id, accountId: s.efectivoHijo.id, date: "2026-09-01", note: null }),
+    ).rejects.toBeInstanceOf(AuthzError);
+    await expect(deleteTransaction(getDb(), s.hijo, s.txMama.id)).rejects.toBeInstanceOf(AuthzError);
+    await expect(restoreTransaction(getDb(), s.hijo, s.txMama.id)).rejects.toBeInstanceOf(AuthzError);
+    await expect(
+      updateAccount(getDb(), s.hijo, s.efectivoMama.id, { name: "x", last4: null, creditLimit: null, statementDay: null, paymentDueDay: null }),
+    ).rejects.toBeInstanceOf(AuthzError);
+    await expect(setAccountArchived(getDb(), s.hijo, s.efectivoMama.id, true)).rejects.toBeInstanceOf(AuthzError);
+    await expect(adjustBalance(getDb(), s.hijo, s.efectivoMama.id, 0)).rejects.toBeInstanceOf(AuthzError);
+    await expect(updateCategory(getDb(), s.hijo, s.catMama.id, { name: "x", icon: "📦" })).rejects.toBeInstanceOf(AuthzError);
+    // Lo de mamá sigue intacto.
+    expect((await getTransaction(getDb(), s.mama, s.txMama.id)).note).toBe("privado");
+  });
+
+  it("ids inventados o mal formados responden 'no encontrado' sin romper", async () => {
+    const s = await twoPeopleSameFamily();
+    await expect(getTransaction(getDb(), s.hijo, "no-es-un-id")).rejects.toBeInstanceOf(AuthzError);
+    await expect(getAccount(getDb(), s.hijo, "00000000-0000-0000-0000-000000000000")).rejects.toBeInstanceOf(AuthzError);
+    await expect(
+      createAccount(getDb(), s.hijo, { kind: "efectivo", name: "Otra", balance: 0, last4: null, creditLimit: null, statementDay: null, paymentDueDay: null }),
+    ).resolves.toBeTruthy();
+  });
+});

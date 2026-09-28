@@ -31,7 +31,7 @@ export function BottomNav() {
               <Link
                 href={item.href}
                 aria-current={active ? "page" : undefined}
-                className={`flex min-h-16 flex-col items-center justify-start gap-1 px-1 py-2 text-center text-sm font-semibold leading-tight ${
+                className={`flex h-[var(--nav-h)] flex-col items-center justify-start gap-1 px-1 py-2 text-center text-sm font-semibold leading-tight ${
                   active ? "text-primary" : "text-muted"
                 }`}
               >

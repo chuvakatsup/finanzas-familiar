@@ -6,7 +6,11 @@ import { Button, Card, PageTitle } from "@/components/ui";
 
 export const metadata: Metadata = { title: "Más" };
 
-const links = [{ href: "/mas/familia", icon: "👨‍👩‍👧", label: "Mi familia", text: "Quiénes están en el grupo" }];
+const links = [
+  { href: "/movimientos", icon: "📋", label: "Mis movimientos", text: "Todo lo que has registrado, por mes" },
+  { href: "/mas/categorias", icon: "🏷️", label: "Categorías", text: "Comida, transporte… cámbialas a tu gusto" },
+  { href: "/mas/familia", icon: "👨‍👩‍👧", label: "Mi familia", text: "Quiénes están en el grupo" },
+];
 
 export default async function MorePage() {
   const user = await requireUser();
@@ -33,6 +37,22 @@ export default async function MorePage() {
             </Link>
           </li>
         ))}
+        <li>
+          {/* Descarga de archivo: enlace normal (no navegación de Next). */}
+          <a
+            href="/api/export/movimientos"
+            download
+            className="flex min-h-16 items-center gap-4 rounded-2xl border border-border bg-surface p-4 hover:bg-surface-2"
+          >
+            <span aria-hidden="true" className="text-3xl">
+              ⬇️
+            </span>
+            <span className="flex flex-col">
+              <span className="text-xl font-semibold">Descargar mis datos</span>
+              <span className="text-base text-muted">Archivo para Excel con todos tus movimientos</span>
+            </span>
+          </a>
+        </li>
       </ul>
       <Card>
         <form action={logoutAction}>

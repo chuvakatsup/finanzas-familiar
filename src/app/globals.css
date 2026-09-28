@@ -21,6 +21,7 @@
   --warn-bg: #fff3d6;
   --danger: #b3261e;
   --danger-bg: #fde7e5;
+  --on-danger: #ffffff;
   --focus: #ff9d00;
   color-scheme: light;
 }
@@ -42,6 +43,7 @@
     --warn-bg: #3a2a07;
     --danger: #ffb4ab;
     --danger-bg: #43110d;
+    --on-danger: #3b0907;
     color-scheme: dark;
   }
 }
@@ -62,6 +64,7 @@
   --warn-bg: #3a2a07;
   --danger: #ffb4ab;
   --danger-bg: #43110d;
+  --on-danger: #3b0907;
   color-scheme: dark;
 }
 
@@ -81,10 +84,13 @@
   --color-warn-bg: var(--warn-bg);
   --color-danger: var(--danger);
   --color-danger-bg: var(--danger-bg);
+  --color-on-danger: var(--on-danger);
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 html {
+  /* Alto fijo de la barra inferior (cabe una etiqueta de 2 renglones). */
+  --nav-h: 5.5rem;
   font-size: 112.5%; /* 18px con la configuración normal del sistema */
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
