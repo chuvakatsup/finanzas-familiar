@@ -90,7 +90,7 @@ export default async function AccountsPage({ searchParams }: PageProps<"/cuentas
         <section aria-labelledby="deudas" className="mb-6">
           <div className="mb-3 flex items-baseline justify-between gap-2">
             <h2 id="deudas" className="text-2xl font-bold">
-              Tarjetas de crédito
+              Tarjetas y préstamos
             </h2>
             <p className="text-right text-base text-muted">
               Debes <strong className="tabular text-xl text-danger">{formatMoney(totalOwed)}</strong>
@@ -107,6 +107,9 @@ export default async function AccountsPage({ searchParams }: PageProps<"/cuentas
       <div className="flex flex-col gap-3">
         <ButtonLink href="/cuentas/nueva">
           <span aria-hidden="true">➕</span> Agregar cuenta o tarjeta
+        </ButtonLink>
+        <ButtonLink href="/prestamos/nuevo" variant="secondary">
+          <span aria-hidden="true">📄</span> Agregar préstamo
         </ButtonLink>
         <ButtonLink href="/registrar/transferencia" variant="secondary">
           <span aria-hidden="true">🔁</span> Pasar dinero o pagar tarjeta

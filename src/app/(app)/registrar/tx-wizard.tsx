@@ -232,6 +232,14 @@ export function TxWizard({
             ))}
           </div>
 
+          {kind === "gasto" && account?.kind === "credito" && (
+            <a
+              href={`/msi/nueva?tarjeta=${account.id}&monto=${encodeURIComponent(amount)}`}
+              className="flex min-h-12 items-center text-base font-semibold text-primary underline underline-offset-4"
+            >
+              <span aria-hidden="true">🗓️&nbsp;</span>¿Fue a meses? Regístrala como compra a meses
+            </a>
+          )}
           {/* Fecha y nota: compactas para que "Guardar" quede a la vista. */}
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-x-4">

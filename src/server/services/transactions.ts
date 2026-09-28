@@ -197,9 +197,17 @@ export async function updateTransaction(
   return after;
 }
 
+/** Movimientos que pertenecen a un préstamo o compra a meses: se cambian desde ahí, no sueltos. */
+function assertNotOwnedBySource(tx: Tx, opts: { fromSource?: boolean }) {
+  if (!opts.fromSource && (tx.origin === "prestamo" || tx.origin === "msi")) {
+    throw new AuthzError("Este movimiento es parte de un préstamo o compra a meses. Cámbialo desde ahí.");
+  }
+}
+
 /** Borrado suave: se puede deshacer. */
-export async function deleteTransaction(db: DbOrTx, actor: Actor, id: string) {
+export async function deleteTransaction(db: DbOrTx, actor: Actor, id: string, opts: { fromSource?: boolean } = {}) {
   const before = await getOwnedTx(db, actor, id);
+  assertNotOwnedBySource(before, opts);
   if (before.deletedAt) return before;
   const [after] = await db
     .update(transactions)
@@ -210,8 +218,9 @@ export async function deleteTransaction(db: DbOrTx, actor: Actor, id: string) {
   return after;
 }
 
-export async function restoreTransaction(db: DbOrTx, actor: Actor, id: string) {
+export async function restoreTransaction(db: DbOrTx, actor: Actor, id: string, opts: { fromSource?: boolean } = {}) {
   const before = await getOwnedTx(db, actor, id);
+  assertNotOwnedBySource(before, opts);
   if (!before.deletedAt) return before;
   if (before.origin === "recurrente") {
     // Si esa fecha ya se volvió a confirmar con otro movimiento, recuperar éste lo contaría doble.

@@ -72,6 +72,8 @@ export default async function MonthPage({ searchParams }: PageProps<"/mes">) {
       <Block title="🧾 Lo que sale">
         <Row label="Gastos del día a día" amount={b.spent.variable} sign="−" hint="Súper, comida, transporte…" />
         <Row label="Pagos fijos ya hechos" amount={b.spent.fixed} sign="−" />
+        {b.spent.installments > 0 && <Row label="Mensualidades de compras a meses" amount={b.spent.installments} sign="−" />}
+        {b.spent.debts > 0 && <Row label="Pagos a préstamos (capital)" amount={b.spent.debts} sign="−" hint="Los intereses están en pagos fijos" />}
         {b.spent.support > 0 && <Row label="Apoyos que enviaste" amount={b.spent.support} sign="−" />}
         {pendingPay.map((d) => (
           <Row
@@ -82,6 +84,26 @@ export default async function MonthPage({ searchParams }: PageProps<"/mes">) {
             sign="−"
           />
         ))}
+        {report.loanDue.map((l) => (
+          <Row
+            key={l.rowId}
+            label={`Falta pagar: ${l.name} (pago ${l.number})`}
+            hint={capitalize(formatDay(l.dueDate))}
+            amount={l.amount}
+            sign="−"
+          />
+        ))}
+        {report.installments
+          .filter((i) => i.dueDate > today)
+          .map((i) => (
+            <Row
+              key={`${i.purchaseId}-${i.number}`}
+              label={`Mensualidad: ${i.description} (${i.number} de ${i.months})`}
+              hint={capitalize(formatDay(i.dueDate))}
+              amount={i.amount}
+              sign="−"
+            />
+          ))}
         {b.expectedVariable > 0 && (
           <Row
             label="Apartado para gastos del resto del mes"

@@ -6,8 +6,8 @@ import { groupByDate } from "@/domain/summary";
 import { TX_KIND_INFO } from "@/domain/transactions";
 import { TxAmount } from "./money";
 
-/** Los confirmados desde un pago/ingreso fijo guardan su nombre en la nota ("Netflix"). */
-const fromSchedule = (t: TxRow) => t.origin === "recurrente" && !!t.note;
+/** Los generados (pago fijo, préstamo, compra a meses) guardan su nombre en la nota: se muestra ése. */
+const fromSchedule = (t: TxRow) => t.origin !== "manual" && !!t.note;
 
 function title(t: TxRow) {
   if (fromSchedule(t)) return t.note!;

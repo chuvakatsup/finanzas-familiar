@@ -5,7 +5,9 @@
  */
 import { and, eq } from "drizzle-orm";
 import { closeDb, getDb } from "@/server/db";
-import { accounts, categories, households, scheduledItems, transactions, users } from "@/server/db/schema";
+import { accounts, categories, households, installmentPurchases, loans, scheduledItems, transactions, users } from "@/server/db/schema";
+import { createInstallmentPurchase } from "@/server/services/msi";
+import { createLoan } from "@/server/services/loans";
 import { hashPassword } from "@/server/auth/password";
 import type { Actor } from "@/server/authz";
 import { createAccount } from "@/server/services/accounts";
@@ -104,6 +106,33 @@ async function sampleScheduled(actor: Actor, kind: "mama" | "hijo") {
   for (const item of items) await createScheduled(db, actor, item);
 }
 
+/** Tarjeta con corte/pago, compra a meses ya iniciada y un préstamo. */
+async function sampleCredit(actor: Actor, kind: "mama" | "hijo") {
+  const accs = await db.select().from(accounts).where(eq(accounts.userId, actor.id));
+  const debito = accs.find((a) => a.kind === "debito")!;
+  const credito = accs.find((a) => a.kind === "credito")!;
+  await db.update(accounts).set({ statementDay: 5, paymentDueDay: 25, interestRateBp: 4500 }).where(eq(accounts.id, credito.id));
+  const today = todayIso();
+  if (kind === "mama") {
+    await createInstallmentPurchase(db, actor, {
+      cardAccountId: credito.id, description: "Refrigerador", categoryId: await categoryId(actor.id, "Casa"),
+      principal: 1200000, months: 12, withInterest: false, annualRateBp: 0, ivaPct: 0,
+      purchaseDate: "2026-01-20", firstDueDate: "2026-02-25", paidBefore: 7,
+    });
+    await createLoan(db, actor, {
+      name: "Mi hijo Daniel", informal: true, principal: 600000, annualRateBp: 0, ivaPct: 0, periodicity: "mensual",
+      nPayments: 6, firstPaymentDate: addDays(today, 3), openingFee: null, catBp: null, payFromAccountId: debito.id,
+      paidBefore: 0, currentBalance: null,
+    });
+  } else {
+    await createLoan(db, actor, {
+      name: "Crédito auto BBVA", informal: false, principal: 15000000, annualRateBp: 1450, ivaPct: 16, periodicity: "mensual",
+      nPayments: 36, firstPaymentDate: "2026-01-10", openingFee: 300000, catBp: 2210, payFromAccountId: debito.id,
+      paidBefore: 8, currentBalance: null,
+    });
+  }
+}
+
 try {
   let [h] = await db.select().from(households).where(eq(households.name, DEMO.household)).limit(1);
   if (!h) [h] = await db.insert(households).values({ name: DEMO.household }).returning();
@@ -123,6 +152,9 @@ try {
     if (!hasTx) await sampleData(actor, key);
     const [hasScheduled] = await db.select({ id: scheduledItems.id }).from(scheduledItems).where(eq(scheduledItems.userId, u.id)).limit(1);
     if (!hasScheduled) await sampleScheduled(actor, key);
+    const [hasLoan] = await db.select({ id: loans.id }).from(loans).where(eq(loans.userId, u.id)).limit(1);
+    const [hasMsi] = await db.select({ id: installmentPurchases.id }).from(installmentPurchases).where(eq(installmentPurchases.userId, u.id)).limit(1);
+    if (!hasLoan && !hasMsi) await sampleCredit(actor, key);
   }
   console.log("✔ Seed listo:");
   console.log(`  Hijo (admin): ${DEMO.hijo.email} / ${DEMO.hijo.password}`);

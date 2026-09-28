@@ -20,6 +20,7 @@ import { ACCOUNT_KINDS } from "@/domain/accounts";
 import { CATEGORY_KINDS } from "@/domain/categories";
 import { TX_KINDS, TX_ORIGINS } from "@/domain/transactions";
 import { FREQUENCIES } from "@/domain/recurrence";
+import { AMORTIZATION_METHODS, PERIODICITIES } from "@/domain/amortization";
 
 // Convención: dinero SIEMPRE en centavos enteros (bigint, mode "number").
 // Fechas sin hora como `date`; instantes como timestamptz.
@@ -181,6 +182,12 @@ export const accounts = pgTable(
     creditLimit: money("credit_limit"),
     statementDay: smallint("statement_day"),
     paymentDueDay: smallint("payment_due_day"),
+    // Crédito: tasa anual ordinaria en puntos base (24.5% = 2450), para estimar intereses.
+    interestRateBp: integer("interest_rate_bp"),
+    // Crédito: pago programado que representa la anualidad.
+    annualFeeItemId: uuid("annual_fee_item_id"),
+    annualFee: money("annual_fee"),
+    annualFeeIva: boolean("annual_fee_iva").notNull().default(true),
     sortOrder: integer("sort_order").notNull().default(0),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
     createdAt: createdAt(),
@@ -337,5 +344,125 @@ export const budgets = pgTable(
     uniqueIndex("budgets_general_uq").on(t.userId).where(sql`${t.categoryId} is null`),
     uniqueIndex("budgets_category_uq").on(t.userId, t.categoryId).where(sql`${t.categoryId} is not null`),
     check("budgets_amount_chk", sql`${t.amount} > 0`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Fase 5: compras a meses (con y sin intereses)
+// ---------------------------------------------------------------------------
+
+export const installmentPurchases = pgTable(
+  "installment_purchases",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    cardAccountId: uuid("card_account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "restrict" }),
+    description: text("description").notNull(),
+    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "restrict" }),
+    // Precio de la compra (sin intereses).
+    principal: money("principal").notNull(),
+    months: smallint("months").notNull(),
+    withInterest: boolean("with_interest").notNull().default(false),
+    annualRateBp: integer("annual_rate_bp").notNull().default(0),
+    ivaPct: smallint("iva_pct").notNull().default(0),
+    purchaseDate: date("purchase_date", { mode: "string" }).notNull(),
+    firstDueDate: date("first_due_date", { mode: "string" }).notNull(),
+    // Compra que ya venía corriendo: mensualidades pagadas antes de usar la app (no afectan meses pasados).
+    paidBefore: smallint("paid_before").notNull().default(0),
+    // Movimiento que subió la deuda de la tarjeta (solo lo que faltaba por pagar).
+    transactionId: uuid("transaction_id").references(() => transactions.id, { onDelete: "set null" }),
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("msi_user_idx").on(t.userId),
+    index("msi_card_idx").on(t.cardAccountId),
+    check("msi_months_chk", sql`${t.months} between 1 and 60`),
+    check("msi_paid_before_chk", sql`${t.paidBefore} >= 0 and ${t.paidBefore} < ${t.months}`),
+    check("msi_principal_chk", sql`${t.principal} > 0`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Fase 6: préstamos y su tabla de amortización
+// ---------------------------------------------------------------------------
+
+export const periodicity = pgEnum("periodicity", PERIODICITIES);
+export const amortizationMethod = pgEnum("amortization_method", AMORTIZATION_METHODS);
+export const loanRowStatus = pgEnum("loan_row_status", ["pendiente", "pagado", "pagado_previo"]);
+export const loanRowKind = pgEnum("loan_row_kind", ["cuota", "abono"]);
+
+export const loans = pgTable(
+  "loans",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Cuenta tipo "prestamo" cuyo saldo (negativo) es el capital que se debe.
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "restrict" }),
+    // Cuenta desde donde normalmente se paga.
+    payFromAccountId: uuid("pay_from_account_id").references(() => accounts.id, { onDelete: "set null" }),
+    name: text("name").notNull(),
+    informal: boolean("informal").notNull().default(false),
+    principal: money("principal").notNull(),
+    annualRateBp: integer("annual_rate_bp").notNull().default(0),
+    ivaPct: smallint("iva_pct").notNull().default(0),
+    periodicity: periodicity("periodicity").notNull(),
+    nPayments: smallint("n_payments").notNull(),
+    firstPaymentDate: date("first_payment_date", { mode: "string" }).notNull(),
+    method: amortizationMethod("method").notNull().default("frances"),
+    openingFee: money("opening_fee"),
+    // CAT: solo informativo (lo reporta el banco), en puntos base.
+    catBp: integer("cat_bp"),
+    // Capital que se debía al darlo de alta (después de los pagos previos).
+    startBalance: money("start_balance").notNull(),
+    paidBefore: smallint("paid_before").notNull().default(0),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("loans_user_idx").on(t.userId),
+    check("loans_principal_chk", sql`${t.principal} > 0`),
+    check("loans_n_chk", sql`${t.nPayments} between 1 and 1000`),
+  ],
+);
+
+export const loanPayments = pgTable(
+  "loan_payments",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    loanId: uuid("loan_id")
+      .notNull()
+      .references(() => loans.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: loanRowKind("kind").notNull().default("cuota"),
+    number: smallint("number").notNull(),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    payment: money("payment").notNull(),
+    capital: money("capital").notNull(),
+    interest: money("interest").notNull(),
+    iva: money("iva").notNull(),
+    balanceAfter: money("balance_after").notNull(),
+    status: loanRowStatus("status").notNull().default("pendiente"),
+    paidDate: date("paid_date", { mode: "string" }),
+    capitalTxId: uuid("capital_tx_id").references(() => transactions.id, { onDelete: "set null" }),
+    interestTxId: uuid("interest_tx_id").references(() => transactions.id, { onDelete: "set null" }),
+    // Cuándo se registró el pago/abono en la app (para deshacer en orden).
+    recordedAt: timestamp("recorded_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("loan_payments_loan_idx").on(t.loanId, t.dueDate),
+    index("loan_payments_user_idx").on(t.userId, t.dueDate),
+    uniqueIndex("loan_payments_cuota_uq").on(t.loanId, t.number).where(sql`${t.kind} = 'cuota'`),
   ],
 );

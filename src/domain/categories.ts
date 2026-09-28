@@ -16,6 +16,7 @@ export const DEFAULT_CATEGORIES: Record<CategoryKind, { name: string; icon: stri
     { name: "Educación", icon: "📚" },
     { name: "Regalos", icon: "🎁" },
     { name: "Mascotas", icon: "🐾" },
+    { name: "Intereses y comisiones", icon: "💸" },
     { name: "Otros", icon: "📦" },
   ],
   ingreso: [
@@ -30,5 +31,5 @@ export const DEFAULT_CATEGORIES: Record<CategoryKind, { name: string; icon: stri
 /** Iconos para elegir al crear una categoría. */
 export const CATEGORY_ICON_CHOICES = [
   "🍎", "🛒", "🍽️", "☕", "🚌", "🚗", "⛽", "🏠", "💡", "💧", "🔥", "📱", "💊", "🏥", "👕", "🎉",
-  "📚", "🎁", "🐾", "✂️", "🧹", "🛠️", "⛪", "✈️", "🎬", "💼", "🏛️", "🏷️", "🤝", "💰", "📦", "❤️",
+  "📚", "🎁", "🐾", "✂️", "🧹", "🛠️", "⛪", "✈️", "🎬", "💼", "🏛️", "🏷️", "🤝", "💰", "📦", "❤️", "💸",
 ] as const;

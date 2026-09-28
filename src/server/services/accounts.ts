@@ -9,6 +9,9 @@ import { todayIso } from "@/domain/dates";
 import type { Cents } from "@/domain/money";
 import type { AccountFormInput } from "@/lib/schemas/finance";
 
+/** Datos de alta/edición; la tasa es opcional para quien no la sabe. */
+export type AccountInput = Omit<AccountFormInput, "interestRateBp"> & { interestRateBp?: number | null };
+
 /**
  * Saldo calculado en SQL: inicial + entradas − salidas (sin contar borrados).
  * Ojo: dentro de un select, Drizzle escribe las columnas sin tabla; por eso aquí se califican a mano
@@ -31,6 +34,7 @@ const accountFields = {
   creditLimit: accounts.creditLimit,
   statementDay: accounts.statementDay,
   paymentDueDay: accounts.paymentDueDay,
+  interestRateBp: accounts.interestRateBp,
   archivedAt: accounts.archivedAt,
   balance: balanceSql,
 };
@@ -44,6 +48,7 @@ export type AccountWithBalance = {
   creditLimit: Cents | null;
   statementDay: number | null;
   paymentDueDay: number | null;
+  interestRateBp: number | null;
   archivedAt: Date | null;
   balance: Cents;
 };
@@ -76,17 +81,18 @@ export function toInternalBalance(kind: AccountKind, typed: Cents): Cents {
   return ACCOUNT_KIND_INFO[kind].isDebt ? -typed : typed;
 }
 
-function creditFields(kind: AccountKind, input: Omit<AccountFormInput, "kind" | "balance">) {
+function creditFields(kind: AccountKind, input: Omit<AccountInput, "kind" | "balance">) {
   const isCredit = kind === "credito";
   return {
     creditLimit: isCredit ? input.creditLimit : null,
     statementDay: isCredit ? input.statementDay : null,
     paymentDueDay: isCredit ? input.paymentDueDay : null,
+    interestRateBp: isCredit ? (input.interestRateBp ?? null) : null,
     last4: kind === "efectivo" ? null : input.last4,
   };
 }
 
-export async function createAccount(db: DbOrTx, actor: Actor, input: AccountFormInput) {
+export async function createAccount(db: DbOrTx, actor: Actor, input: AccountInput) {
   const [{ max }] = await db
     .select({ max: sql<number>`coalesce(max(${accounts.sortOrder}), 0)::int` })
     .from(accounts)
@@ -117,7 +123,7 @@ export async function updateAccount(
   db: DbOrTx,
   actor: Actor,
   id: string,
-  input: Omit<AccountFormInput, "kind" | "balance">,
+  input: Omit<AccountInput, "kind" | "balance">,
 ) {
   const before = await getAccount(db, actor, id);
   const [after] = await db

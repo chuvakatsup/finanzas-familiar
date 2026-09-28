@@ -15,11 +15,14 @@ type Existing = {
   creditLimit: string;
   statementDay: number | null;
   paymentDueDay: number | null;
+  interestRate: string;
+  annualFee: { amount: string; nextDate: string; withIva: boolean } | null;
 };
 
 /** Alta (con selección de tipo) o edición de una cuenta. */
 export function AccountForm({ existing }: { existing?: Existing }) {
   const [kind, setKind] = useState<AccountKind | null>(existing?.kind ?? null);
+  const [hasFee, setHasFee] = useState(Boolean(existing?.annualFee));
   const action = existing
     ? updateAccountAction.bind(null, existing.id)
     : (createAccountAction as (s: FormState, f: FormData) => Promise<FormState>);
@@ -126,6 +129,58 @@ export function AccountForm({ existing }: { existing?: Existing }) {
               placeholder="Ej. 25"
               errors={errors.paymentDueDay}
             />
+          </div>
+          <TextField
+            label="Tasa de interés anual (opcional)"
+            hint="Viene en tu estado de cuenta. Sirve para estimar cuánto te cobrarían si solo pagas el mínimo."
+            name="interestRateBp"
+            inputMode="decimal"
+            placeholder="Ej. 42.5"
+            defaultValue={existing?.interestRate ?? ""}
+            errors={errors.interestRateBp}
+          />
+          <div className="rounded-2xl border border-border bg-surface p-4">
+            <label className="flex min-h-12 items-center gap-3 text-lg font-semibold">
+              <input
+                type="checkbox"
+                name="hasAnnualFee"
+                checked={hasFee}
+                onChange={(e) => setHasFee(e.target.checked)}
+                className="size-7 shrink-0 accent-[var(--primary)]"
+              />
+              Me cobran anualidad
+            </label>
+            {hasFee && (
+              <div className="mt-3 flex flex-col gap-4">
+                <TextField
+                  label="¿Cuánto es?"
+                  name="annualFee"
+                  inputMode="decimal"
+                  placeholder="Ej. 900"
+                  defaultValue={existing?.annualFee?.amount ?? ""}
+                  errors={errors.annualFee}
+                />
+                <TextField
+                  label="¿Cuándo te la cobran?"
+                  name="annualFeeDate"
+                  type="date"
+                  defaultValue={existing?.annualFee?.nextDate ?? ""}
+                  errors={errors.annualFeeDate}
+                />
+                <label className="flex min-h-12 items-center gap-3 text-lg">
+                  <input
+                    type="checkbox"
+                    name="annualFeeIva"
+                    defaultChecked={existing?.annualFee?.withIva ?? true}
+                    className="size-7 shrink-0 accent-[var(--primary)]"
+                  />
+                  Más IVA (16%)
+                </label>
+                <p className="text-base text-muted">
+                  Se carga sola a la tarjeta cada año. Si un año te la perdonan, márcala como “No aplica esta vez”.
+                </p>
+              </div>
+            )}
           </div>
         </>
       )}

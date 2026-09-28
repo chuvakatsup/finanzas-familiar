@@ -6,7 +6,7 @@ import { ensureAutoSynced } from "@/server/sync";
 import { listAccounts } from "@/server/services/accounts";
 import { getMonthReport } from "@/server/services/balance";
 import { getPrefs } from "@/server/services/prefs";
-import { listUpcoming } from "@/server/services/scheduled";
+import { listAllUpcoming } from "@/server/services/upcoming";
 import { capitalize, formatLongDate, todayIso } from "@/domain/dates";
 import { formatMoney } from "@/domain/money";
 import { monthOf } from "@/domain/months";
@@ -33,7 +33,7 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const [report, prefs, upcomingData, accounts] = await Promise.all([
     getMonthReport(db, user, month, today),
     getPrefs(db, user),
-    isCurrent ? listUpcoming(db, user, 7, today) : Promise.resolve(null),
+    isCurrent ? listAllUpcoming(db, user, 7, today) : Promise.resolve(null),
     isCurrent ? listAccounts(db, user) : Promise.resolve([]),
   ]);
   const b = report.balance;

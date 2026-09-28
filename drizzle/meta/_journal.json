@@ -29,6 +29,27 @@
       "when": 1790636786376,
       "tag": "0003_presupuesto",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790637842720,
+      "tag": "0004_tarjetas_msi_prestamos",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790637952575,
+      "tag": "0005_anualidad",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790638076563,
+      "tag": "0006_pagos_registrados",
+      "breakpoints": true
     }
   ]
 }

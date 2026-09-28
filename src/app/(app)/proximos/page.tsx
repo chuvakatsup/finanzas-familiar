@@ -3,7 +3,7 @@ import Link from "next/link";
 import { getDb } from "@/server/db";
 import { requireUser } from "@/server/auth/current";
 import { listAccounts } from "@/server/services/accounts";
-import { listUpcoming } from "@/server/services/scheduled";
+import { listAllUpcoming } from "@/server/services/upcoming";
 import { todayIso } from "@/domain/dates";
 import { formatMoney } from "@/domain/money";
 import { addDays } from "@/domain/recurrence";
@@ -19,7 +19,7 @@ export default async function UpcomingPage({ searchParams }: PageProps<"/proximo
   const today = todayIso();
   const db = getDb();
   const [{ overdue, upcoming }, accounts] = await Promise.all([
-    listUpcoming(db, actor, days, today),
+    listAllUpcoming(db, actor, days, today),
     listAccounts(db, actor),
   ]);
   const accountOptions = accounts.map(({ id, name, kind }) => ({ id, name, kind }));
@@ -80,6 +80,9 @@ export default async function UpcomingPage({ searchParams }: PageProps<"/proximo
       <div className="flex flex-col gap-3">
         <ButtonLink href="/pagos-fijos" variant="secondary">
           <span aria-hidden="true">🧾</span> Mis pagos fijos
+        </ButtonLink>
+        <ButtonLink href="/prestamos" variant="secondary">
+          <span aria-hidden="true">📄</span> Mis préstamos
         </ButtonLink>
         <ButtonLink href="/ingresos-fijos" variant="secondary">
           <span aria-hidden="true">💼</span> Mis ingresos fijos

@@ -12,6 +12,7 @@ import {
   updateAccount,
 } from "@/server/services/accounts";
 import { createCategory, setCategoryArchived, updateCategory } from "@/server/services/categories";
+import { setAnnualFee } from "@/server/services/cards";
 import {
   createExpense,
   createIncome,
@@ -23,6 +24,7 @@ import {
 import {
   accountEditSchema,
   accountFormSchema,
+  annualFeeSchema,
   adjustBalanceSchema,
   categoryFormSchema,
   expenseSchema,
@@ -31,6 +33,15 @@ import {
 } from "@/lib/schemas/finance";
 import { type FormState, fieldErrors } from "@/lib/form-state";
 import { field, friendlyError } from "./helpers";
+
+function parseAnnualFee(formData: FormData) {
+  return annualFeeSchema.safeParse({
+    hasFee: formData.get("hasAnnualFee") === "on",
+    amount: field(formData, "annualFee"),
+    nextDate: field(formData, "annualFeeDate"),
+    withIva: formData.get("annualFeeIva") === "on",
+  });
+}
 
 function refreshMoneyPages() {
   revalidatePath("/", "layout");
@@ -172,11 +183,19 @@ export async function createAccountAction(_prev: FormState, formData: FormData):
     creditLimit: field(formData, "creditLimit"),
     statementDay: field(formData, "statementDay"),
     paymentDueDay: field(formData, "paymentDueDay"),
+    interestRateBp: field(formData, "interestRateBp"),
   });
-  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+  const fee = parseAnnualFee(formData);
+  if (!parsed.success || !fee.success) {
+    return { fieldErrors: { ...(parsed.success ? {} : fieldErrors(parsed.error)), ...(fee.success ? {} : fieldErrors(fee.error)) } };
+  }
   let id: string;
   try {
-    const account = await getDb().transaction((t) => createAccount(t, actor, parsed.data));
+    const account = await getDb().transaction(async (t) => {
+      const created = await createAccount(t, actor, parsed.data);
+      if (created.kind === "credito" && fee.data) await setAnnualFee(t, actor, created.id, fee.data);
+      return created;
+    });
     id = account.id;
   } catch (e) {
     return friendlyError(e);
@@ -193,10 +212,17 @@ export async function updateAccountAction(id: string, _prev: FormState, formData
     creditLimit: field(formData, "creditLimit"),
     statementDay: field(formData, "statementDay"),
     paymentDueDay: field(formData, "paymentDueDay"),
+    interestRateBp: field(formData, "interestRateBp"),
   });
-  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+  const fee = parseAnnualFee(formData);
+  if (!parsed.success || !fee.success) {
+    return { fieldErrors: { ...(parsed.success ? {} : fieldErrors(parsed.error)), ...(fee.success ? {} : fieldErrors(fee.error)) } };
+  }
   try {
-    await getDb().transaction((t) => updateAccount(t, actor, idSchema.parse(id), parsed.data));
+    await getDb().transaction(async (t) => {
+      const updated = await updateAccount(t, actor, idSchema.parse(id), parsed.data);
+      if (updated.kind === "credito") await setAnnualFee(t, actor, updated.id, fee.data);
+    });
   } catch (e) {
     return friendlyError(e);
   }

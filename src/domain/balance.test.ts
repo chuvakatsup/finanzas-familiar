@@ -36,7 +36,7 @@ describe("balance del mes", () => {
     });
     expect(b.income).toEqual({ received: 600_000, expected: 600_000, total: 1_200_000 });
     expect(b.commitments).toBe(45_000);
-    expect(b.spent).toEqual({ total: 190_000, variable: 150_000, fixed: 40_000, support: 0 });
+    expect(b.spent).toEqual({ total: 190_000, variable: 150_000, fixed: 40_000, support: 0, debts: 0, installments: 0 });
     expect(b.budgetLeft).toBe(250_000);
     expect(b.expectedVariable).toBe(250_000);
     expect(b.outgoings).toBe(190_000 + 45_000 + 250_000);
@@ -140,6 +140,39 @@ describe("balance del mes", () => {
     expect(b.budgetLeft).toBe(0);
     expect(b.expectedVariable).toBe(0);
     expect(b.dailyAllowance).toBe(0);
+  });
+});
+
+describe("préstamos y compras a meses", () => {
+  it("cuota pagada (capital + interés) sale del mes; cuota pendiente es compromiso", () => {
+    const b = computeMonthBalance({
+      ...base,
+      txs: [
+        { kind: "ingreso", amount: 1_000_000, origin: "manual" },
+        { kind: "pago_prestamo", amount: 70_000, origin: "prestamo" }, // capital
+        { kind: "gasto", amount: 30_000, origin: "prestamo" }, // interés + IVA
+      ],
+      due: [{ kind: "pago", amount: 100_000, status: "pendiente" }], // siguiente cuota del mes
+    });
+    expect(b.spent).toMatchObject({ total: 100_000, debts: 70_000, fixed: 30_000, variable: 0 });
+    expect(b.commitments).toBe(100_000);
+    expect(b.result).toBe(800_000);
+  });
+  it("compra a meses: la compra no cuenta; la mensualidad sí, en su mes", () => {
+    const b = computeMonthBalance({
+      ...base,
+      txs: [
+        { kind: "ingreso", amount: 1_000_000, origin: "manual" },
+        { kind: "compra_msi", amount: 1_200_000, origin: "msi" },
+      ],
+      installments: [
+        { amount: 100_000, dueDate: "2026-09-05" }, // ya cargada
+        { amount: 50_000, dueDate: "2026-09-25" }, // aún no
+      ],
+    });
+    expect(b.spent).toMatchObject({ total: 100_000, installments: 100_000 });
+    expect(b.commitments).toBe(50_000);
+    expect(b.result).toBe(850_000);
   });
 });
 

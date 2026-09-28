@@ -1,0 +1,1 @@
+ALTER TABLE "loan_payments" ADD COLUMN "recorded_at" timestamp with time zone;

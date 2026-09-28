@@ -26,7 +26,7 @@ export function DueList({
       ) : (
         <div className="flex flex-col gap-3">
           {items.map((d) => (
-            <DueCard key={`${d.itemId}|${d.dueDate}`} due={d} today={today} accounts={accounts} />
+            <DueCard key={`${d.source}|${d.itemId}|${d.rowId ?? d.dueDate}`} due={d} today={today} accounts={accounts} />
           ))}
         </div>
       )}

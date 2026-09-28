@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/server/db";
 import { requireUser } from "@/server/auth/current";
 import { AuthzError } from "@/server/authz";
 import { getAccount } from "@/server/services/accounts";
 import { listTransactions } from "@/server/services/transactions";
+import { getAnnualFee, getCardStatement } from "@/server/services/cards";
+import { loanIdsByAccount } from "@/server/services/loans";
+import { listInstallmentPurchases } from "@/server/services/msi";
+import { todayIso } from "@/domain/dates";
+import { formatDay } from "@/domain/months";
+import { MsiList, StatementBox } from "./card-extras";
 import { setAccountArchivedAction } from "@/server/actions/finance";
 import { ACCOUNT_KIND_INFO, creditSummary } from "@/domain/accounts";
 import { formatMoney } from "@/domain/money";
@@ -23,7 +29,18 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
     if (e instanceof AuthzError) notFound();
     throw e;
   });
-  const rows = await listTransactions(db, actor, { accountId: id, limit: 30 });
+  if (account.kind === "prestamo") {
+    const loanId = (await loanIdsByAccount(db, actor)).get(account.id);
+    if (loanId) redirect(`/prestamos/${loanId}`);
+  }
+  const today = todayIso();
+  const isCard = account.kind === "credito";
+  const [rows, statement, purchases, fee] = await Promise.all([
+    listTransactions(db, actor, { accountId: id, limit: 30 }),
+    isCard ? getCardStatement(db, actor, account.id, today) : Promise.resolve(null),
+    isCard ? listInstallmentPurchases(db, actor, { cardAccountId: account.id, today }) : Promise.resolve([]),
+    isCard ? getAnnualFee(db, actor, account.id, today) : Promise.resolve(null),
+  ]);
   const info = ACCOUNT_KIND_INFO[account.kind];
   const credit = account.kind === "credito" ? creditSummary(account.balance, account.creditLimit) : null;
 
@@ -80,6 +97,20 @@ export default async function AccountPage({ params, searchParams }: PageProps<"/
           </>
         )}
       </Card>
+
+      {statement && <StatementBox st={statement} today={today} />}
+      {isCard && !statement && !account.archivedAt && (
+        <p className="mb-5 rounded-2xl bg-surface-2 p-4 text-base text-muted">
+          Agrega el día de corte y el día límite de pago (en “Editar datos”) para ver cuánto pagar y cuándo.
+        </p>
+      )}
+      {isCard && <MsiList purchases={purchases} cardId={account.id} />}
+      {fee && (
+        <p className="mb-5 text-lg">
+          <span aria-hidden="true">🗓️ </span>Anualidad: <strong className="tabular">{formatMoney(fee.total)}</strong>
+          {fee.nextDate ? ` · próxima el ${formatDay(fee.nextDate)}` : ""}
+        </p>
+      )}
 
       {!account.archivedAt && (
         <div className="mb-6 flex flex-col gap-3">

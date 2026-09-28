@@ -198,7 +198,13 @@ export async function getScheduled(db: DbOrTx, actor: Actor, id: string) {
 export type DueStatus = "pendiente" | "confirmado" | "omitido";
 
 export type DueItem = {
+  /** De dónde viene: pago/ingreso programado, cuota de préstamo o pago de tarjeta. */
+  source: "programado" | "prestamo" | "tarjeta";
   itemId: string;
+  /** Renglón de la tabla del préstamo (solo préstamos). */
+  rowId: string | null;
+  /** Texto extra: "Pago 3 de 12", "Para no generar intereses". */
+  detail: string | null;
   kind: ScheduleKind;
   name: string;
   dueDate: IsoDate;
@@ -260,6 +266,9 @@ export async function listDue(db: DbOrTx, actor: Actor, from: IsoDate, to: IsoDa
       if (o?.status === "omitido") status = "omitido";
       else if (o?.status === "confirmado" && o.transactionId && !o.txDeletedAt) status = "confirmado";
       out.push({
+        source: "programado",
+        rowId: null,
+        detail: null,
         itemId: item.id,
         kind: item.kind,
         name: item.name,

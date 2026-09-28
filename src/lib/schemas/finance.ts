@@ -3,6 +3,7 @@ import { CREATABLE_ACCOUNT_KINDS } from "@/domain/accounts";
 import { CATEGORY_KINDS } from "@/domain/categories";
 import { parseMoney } from "@/domain/money";
 import { FREQUENCIES } from "@/domain/recurrence";
+import { PERIODICITIES, parseRatePct } from "@/domain/amortization";
 
 /** Tope de seguridad: 100 millones de pesos. */
 const MAX_CENTS = 10_000_000_000;
@@ -92,6 +93,19 @@ export const accountFormSchema = z.object({
   creditLimit: optionalAmount,
   statementDay: optionalDay,
   paymentDueDay: optionalDay,
+  /** Tasa anual de la tarjeta (%), opcional. */
+  interestRateBp: z
+    .string()
+    .trim()
+    .transform((v, ctx) => {
+      if (v === "") return null;
+      const bp = parseRatePct(v);
+      if (bp == null) {
+        ctx.addIssue({ code: "custom", message: "Escribe la tasa como número, por ejemplo 42.5" });
+        return z.NEVER;
+      }
+      return bp;
+    }),
 });
 export type AccountFormInput = z.infer<typeof accountFormSchema>;
 
@@ -241,3 +255,156 @@ export const budgetFormSchema = z.object({
 
 export const LETRA_CHOICES = ["normal", "grande", "muy-grande"] as const;
 export const TEMA_CHOICES = ["sistema", "claro", "oscuro"] as const;
+
+// ---------------- Tarjetas, compras a meses y préstamos ----------------
+
+const rateSchema = z
+  .string()
+  .trim()
+  .transform((v, ctx) => {
+    if (v === "") return 0;
+    const bp = parseRatePct(v);
+    if (bp == null) {
+      ctx.addIssue({ code: "custom", message: "Escribe la tasa como número, por ejemplo 36 o 42.5" });
+      return z.NEVER;
+    }
+    return bp;
+  });
+
+const intIn = (min: number, max: number, msg: string) =>
+  z
+    .string()
+    .trim()
+    .transform((v, ctx) => {
+      const n = Number(v);
+      if (!Number.isInteger(n) || n < min || n > max) {
+        ctx.addIssue({ code: "custom", message: msg });
+        return z.NEVER;
+      }
+      return n;
+    });
+
+export const annualFeeSchema = z
+  .object({
+    hasFee: z.boolean(),
+    amount: z.string().trim(),
+    nextDate: z.string().trim(),
+    withIva: z.boolean(),
+  })
+  .transform((d, ctx) => {
+    if (!d.hasFee) return null;
+    const amount = amountSchema.safeParse(d.amount);
+    if (!amount.success) ctx.addIssue({ code: "custom", path: ["annualFee"], message: "Escribe el monto de la anualidad." });
+    const date = isoDateSchema.safeParse(d.nextDate);
+    if (!date.success) ctx.addIssue({ code: "custom", path: ["annualFeeDate"], message: "Elige cuándo te la cobran." });
+    if (!amount.success || !date.success) return z.NEVER;
+    return { amount: amount.data, nextDate: date.data, withIva: d.withIva };
+  });
+
+export const msiFormSchema = z
+  .object({
+    cardAccountId: z.uuid({ error: "Elige la tarjeta." }),
+    description: z.string().trim().min(1, "¿Qué compraste?").max(60, "Muy largo."),
+    categoryId: z.uuid({ error: "Elige una categoría." }),
+    principal: amountSchema,
+    months: intIn(2, 60, "Elige de 2 a 60 meses."),
+    withInterest: z.boolean(),
+    annualRateBp: rateSchema,
+    ivaPct: z.enum(["0", "16"]).transform(Number),
+    purchaseDate: isoDateSchema,
+    firstDueDate: z.string().trim(),
+    alreadyStarted: z.boolean(),
+    paidBefore: z.string().trim(),
+  })
+  .transform((d, ctx) => {
+    let paidBefore = 0;
+    if (d.alreadyStarted) {
+      const n = Number(d.paidBefore);
+      if (!Number.isInteger(n) || n < 1 || n >= d.months) {
+        ctx.addIssue({ code: "custom", path: ["paidBefore"], message: `Escribe cuántas ya pagaste (de 1 a ${d.months - 1}).` });
+        return z.NEVER;
+      }
+      paidBefore = n;
+    }
+    if (d.withInterest && d.annualRateBp <= 0) {
+      ctx.addIssue({ code: "custom", path: ["annualRateBp"], message: "Escribe la tasa de interés." });
+      return z.NEVER;
+    }
+    const first = d.firstDueDate ? isoDateSchema.safeParse(d.firstDueDate) : null;
+    if (first && !first.success) {
+      ctx.addIssue({ code: "custom", path: ["firstDueDate"], message: "Revisa la fecha." });
+      return z.NEVER;
+    }
+    return {
+      cardAccountId: d.cardAccountId,
+      description: d.description,
+      categoryId: d.categoryId,
+      principal: d.principal,
+      months: d.months,
+      withInterest: d.withInterest,
+      annualRateBp: d.annualRateBp,
+      ivaPct: d.ivaPct,
+      purchaseDate: d.purchaseDate,
+      firstDueDate: first?.data ?? null,
+      paidBefore,
+    };
+  });
+
+export const loanFormSchema = z
+  .object({
+    name: z.string().trim().min(1, "¿Quién te prestó? Ej. “Banco Azteca” o “Mi hermano”.").max(40),
+    informal: z.boolean(),
+    principal: amountSchema,
+    annualRateBp: rateSchema,
+    withIva: z.boolean(),
+    periodicity: z.enum(PERIODICITIES, { error: "Elige cada cuándo pagas." }),
+    nPayments: intIn(1, 1000, "Escribe cuántos pagos son en total."),
+    firstPaymentDate: isoDateSchema,
+    openingFee: z.string().trim(),
+    catBp: z.string().trim(),
+    payFromAccountId: z.uuid({ error: "Elige con qué cuenta pagas." }),
+    alreadyStarted: z.boolean(),
+    paidBefore: z.string().trim(),
+    currentBalance: z.string().trim(),
+  })
+  .transform((d, ctx) => {
+    let paidBefore = 0;
+    if (d.alreadyStarted) {
+      const n = Number(d.paidBefore);
+      if (!Number.isInteger(n) || n < 1 || n >= d.nPayments) {
+        ctx.addIssue({ code: "custom", path: ["paidBefore"], message: `Escribe cuántos pagos ya hiciste (de 1 a ${d.nPayments - 1}).` });
+        return z.NEVER;
+      }
+      paidBefore = n;
+    }
+    const opt = (v: string, path: string) => {
+      if (v === "") return null;
+      const r = amountSchema.safeParse(v);
+      if (!r.success) ctx.addIssue({ code: "custom", path: [path], message: "Revisa el monto." });
+      return r.success ? r.data : null;
+    };
+    const catBp = d.catBp === "" ? null : parseRatePct(d.catBp);
+    if (d.catBp !== "" && catBp == null) ctx.addIssue({ code: "custom", path: ["catBp"], message: "Revisa el CAT." });
+    return {
+      name: d.name,
+      informal: d.informal,
+      principal: d.principal,
+      annualRateBp: d.informal ? 0 : d.annualRateBp,
+      ivaPct: d.informal || !d.withIva ? 0 : 16,
+      periodicity: d.periodicity,
+      nPayments: d.nPayments,
+      firstPaymentDate: d.firstPaymentDate,
+      openingFee: opt(d.openingFee, "openingFee"),
+      catBp,
+      payFromAccountId: d.payFromAccountId,
+      paidBefore,
+      currentBalance: d.alreadyStarted ? opt(d.currentBalance, "currentBalance") : null,
+    };
+  });
+
+export const prepaySchema = z.object({
+  amount: amountSchema,
+  date: isoDateSchema,
+  fromAccountId: z.uuid({ error: "Elige con qué cuenta pagaste." }),
+  mode: z.enum(["plazo", "cuota"], { error: "Elige qué prefieres." }),
+});

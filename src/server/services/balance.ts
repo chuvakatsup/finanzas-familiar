@@ -9,6 +9,8 @@ import { listCategories } from "./categories";
 import { getPrefs, warnPct } from "./prefs";
 import { type DueItem, listDue } from "./scheduled";
 import { type TxRow, listTransactions } from "./transactions";
+import { type InstallmentDue, installmentsBetween } from "./msi";
+import { type LoanDue, loanDueBetween } from "./loans";
 
 export type CategoryBreakdown = {
   categoryId: string | null;
@@ -24,6 +26,10 @@ export type MonthReport = {
   balance: MonthBalance;
   txs: TxRow[];
   due: DueItem[];
+  /** Mensualidades de compras a meses del mes. */
+  installments: InstallmentDue[];
+  /** Cuotas de préstamos pendientes del mes. */
+  loanDue: LoanDue[];
   byCategory: CategoryBreakdown[];
   /** Categorías con límite aunque aún no tengan gasto (para mostrarlas). */
   budgetsByCategory: Record<string, Cents>;
@@ -37,25 +43,35 @@ export async function getMonthReport(
   today: IsoDate = todayIso(),
 ): Promise<MonthReport> {
   const [from, to] = monthRange(month);
-  const [txs, due, budgets, prefs, cats] = await Promise.all([
+  const [txs, due, budgets, prefs, cats, installments, loanDue] = await Promise.all([
     listTransactions(db, actor, { from, to, limit: 5000 }),
     listDue(db, actor, from, to),
     getBudgets(db, actor),
     getPrefs(db, actor),
     listCategories(db, actor, "gasto", { includeArchived: true }),
+    installmentsBetween(db, actor, from, to),
+    loanDueBetween(db, actor, from, to),
   ]);
 
   const balance = computeMonthBalance({
     month,
     today,
     txs,
-    due,
+    // Las cuotas pendientes de préstamos son compromisos como cualquier pago fijo.
+    due: [...due, ...loanDue.map((l) => ({ kind: "pago" as const, amount: l.amount, status: "pendiente" as const }))],
+    installments,
     budget: budgets.general,
     warnPct: warnPct(prefs),
   });
 
   const catById = new Map(cats.map((c) => [c.id, c]));
-  const spent = spendingByCategory(txs);
+  // Las mensualidades de compras a meses cuentan en la categoría de la compra (la compra en sí no).
+  const spent = spendingByCategory([
+    ...txs,
+    ...installments
+      .filter((i) => i.dueDate <= today)
+      .map((i) => ({ kind: "gasto" as const, amount: i.amount, origin: "msi" as const, categoryId: i.categoryId })),
+  ]);
   const byCategory: CategoryBreakdown[] = spent.map((s) => {
     const c = s.categoryId ? catById.get(s.categoryId) : undefined;
     return {
@@ -72,5 +88,5 @@ export async function getMonthReport(
     if (c) byCategory.push({ categoryId, name: c.name, icon: c.icon, total: 0, share: 0, limit });
   }
 
-  return { month, balance, txs, due, byCategory, budgetsByCategory: budgets.byCategory };
+  return { month, balance, txs, due, installments, loanDue, byCategory, budgetsByCategory: budgets.byCategory };
 }

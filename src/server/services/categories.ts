@@ -156,3 +156,15 @@ export async function setCategoryArchived(db: DbOrTx, actor: Actor, id: string, 
     action: archived ? "borrar" : "restaurar",
   });
 }
+
+/** Devuelve (o crea) una categoría por nombre. Para categorías que la app necesita, como "Intereses y comisiones". */
+export async function ensureCategory(db: DbOrTx, userId: string, kind: CategoryKind, name: string, icon: string) {
+  const [found] = await db
+    .select({ id: categories.id })
+    .from(categories)
+    .where(and(eq(categories.userId, userId), eq(categories.kind, kind), sql`lower(${categories.name}) = lower(${name})`))
+    .limit(1);
+  if (found) return found.id;
+  const [row] = await db.insert(categories).values({ userId, kind, name, icon, sortOrder: 999 }).returning({ id: categories.id });
+  return row.id;
+}

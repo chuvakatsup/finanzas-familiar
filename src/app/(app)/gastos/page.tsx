@@ -36,7 +36,7 @@ export default async function WhereMoneyGoesPage({ searchParams }: PageProps<"/g
   const month = mes ?? monthOf(today);
   const report = await getMonthReport(getDb(), actor, month, today);
   const rows = report.byCategory;
-  const total = report.balance.spent.total - report.balance.spent.support;
+  const total = rows.reduce((s, r) => s + r.total, 0);
   // La barra más larga ocupa todo el ancho (escala relativa a la categoría mayor o a su límite).
   const scale = Math.max(1, ...rows.map((r) => Math.max(r.total, r.limit ?? 0)));
 

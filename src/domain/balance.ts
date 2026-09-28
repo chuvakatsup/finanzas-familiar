@@ -10,14 +10,20 @@ import type { TxKind, TxOrigin } from "./transactions";
  *   Ingresos del mes (registrados + fijos que aún faltan)
  * − Compromisos (pagos fijos que aún faltan este mes)
  * − Gastos ya hechos (efectivo, débito y tarjeta; el pago de la tarjeta NO cuenta: es transferencia)
+ *   + capital pagado de préstamos (el dinero sí sale del mes) + mensualidades de compras a meses
  * − Gasto variable que falta según el presupuesto (si hay)
  * = Te sobra / te falta
  *
  * Sin doble conteo: un pago fijo confirmado ya es un gasto real y deja de ser "pendiente".
+ * Compras a meses: la compra NO cuenta; cuenta cada mensualidad en su mes (ya cargada si su
+ * fecha pasó; compromiso si aún no). Préstamos: cuota pendiente = compromiso; cuota pagada =
+ * capital (pago_prestamo) + interés/IVA (gasto).
  */
 
 export type BalanceTx = { kind: TxKind; amount: Cents; origin: TxOrigin };
 export type BalanceDue = { kind: "ingreso" | "pago"; amount: Cents; status: "pendiente" | "confirmado" | "omitido" };
+/** Mensualidad de una compra a meses que cae en el mes (sin las "pagadas antes" de usar la app). */
+export type BalanceInstallment = { amount: Cents; dueDate: IsoDate };
 
 export type TrafficLight = "verde" | "amarillo" | "rojo" | "sin-datos";
 export type MonthPosition = "pasado" | "actual" | "futuro";
@@ -29,6 +35,8 @@ export type BalanceInput = {
   txs: readonly BalanceTx[];
   /** Fechas de ingresos/pagos programados que caen en el mes. */
   due: readonly BalanceDue[];
+  /** Mensualidades de compras a meses del mes. */
+  installments?: readonly BalanceInstallment[];
   /** Presupuesto mensual de gasto variable (null = sin presupuesto). */
   budget: Cents | null;
   /** Umbral del amarillo en % de los ingresos (10 = 10%). */
@@ -39,7 +47,7 @@ export type MonthBalance = {
   position: MonthPosition;
   income: { received: Cents; expected: Cents; total: Cents };
   commitments: Cents;
-  spent: { total: Cents; variable: Cents; fixed: Cents; support: Cents };
+  spent: { total: Cents; variable: Cents; fixed: Cents; support: Cents; debts: Cents; installments: Cents };
   /** Lo que se aparta para gasto variable del resto del mes (según presupuesto). */
   expectedVariable: Cents;
   /** Gastos + compromisos + variable esperado (la cifra de en medio del inicio). */
@@ -84,6 +92,8 @@ export function computeMonthBalance(input: BalanceInput): MonthBalance {
   let spentTotal = 0;
   let variable = 0;
   let support = 0;
+  let debts = 0;
+  let installments = 0;
   for (const tx of input.txs) {
     if (tx.kind === "ingreso" || tx.kind === "apoyo_recibido") received += tx.amount;
     if (tx.kind === "gasto") {
@@ -94,10 +104,22 @@ export function computeMonthBalance(input: BalanceInput): MonthBalance {
       spentTotal += tx.amount;
       support += tx.amount;
     }
+    if (tx.kind === "pago_prestamo") {
+      spentTotal += tx.amount;
+      debts += tx.amount;
+    }
   }
 
   let expectedIncome = 0;
   let commitments = 0;
+  for (const inst of input.installments ?? []) {
+    if (inst.dueDate <= input.today) {
+      spentTotal += inst.amount;
+      installments += inst.amount;
+    } else {
+      commitments += inst.amount;
+    }
+  }
   for (const d of input.due) {
     if (d.status !== "pendiente") continue;
     if (d.kind === "ingreso") expectedIncome += d.amount;
@@ -120,13 +142,21 @@ export function computeMonthBalance(input: BalanceInput): MonthBalance {
     dailyAllowance = pool > 0 ? Math.floor(pool / daysLeft) : 0;
   }
 
-  const hasData = input.txs.length > 0 || input.due.length > 0 || input.budget != null;
+  const hasData =
+    input.txs.length > 0 || input.due.length > 0 || (input.installments?.length ?? 0) > 0 || input.budget != null;
 
   return {
     position,
     income: { received, expected: expectedIncome, total: incomeTotal },
     commitments,
-    spent: { total: spentTotal, variable, fixed: spentTotal - variable - support, support },
+    spent: {
+      total: spentTotal,
+      variable,
+      fixed: spentTotal - variable - support - debts - installments,
+      support,
+      debts,
+      installments,
+    },
     expectedVariable,
     outgoings,
     result,

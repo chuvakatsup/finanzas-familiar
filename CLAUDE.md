@@ -55,6 +55,14 @@ PWA familiar (Next.js 16) para responder "¿me alcanza el dinero este mes?". Usu
 - Asistente de primer uso: `/bienvenida?paso=1|2|3|listo`; `prefs.bienvenidaHecha` lo oculta.
 - Barras de gráficas con SVG (atributo `width`), nunca `style` en línea (CSP).
 
+## Tarjetas, compras a meses y préstamos (fases 5 y 6)
+- Motor único `src/domain/amortization.ts` (sistema francés, cuota FIJA con IVA sobre intereses: se calcula con r×(1+IVA); último pago absorbe residuo). Tasas en puntos base enteros (24.5% = 2450). Referencia probada: $100,000, 24% anual, 12 meses → $9,455.96 sin IVA / $9,642.77 con IVA.
+- Compra a meses (`installment_purchases`): al comprar se crea un movimiento `compra_msi` en la tarjeta por lo que falta pagar (NO cuenta como gasto). Las mensualidades se calculan del plan (no se guardan) y cuentan en el balance en su mes (cargada si su fecha pasó; compromiso si no), en la categoría de la compra. Ya iniciadas: `paidBefore` → "pagado previo", fuera de meses pasados.
+- Tarjeta (`src/domain/credit-card.ts`, `services/cards.ts`): último corte, fecha límite, deuda al corte = saldo al corte − mensualidades futuras; pago para no generar intereses, mínimo Banxico (mayor de 1.5% saldo ó 1.25% límite + mensualidades), intereses si solo paga el mínimo. Todo "estimado". Anualidad = pago programado anual automático a la tarjeta (`accounts.annual_fee*`).
+- Préstamos (`loans`, `loan_payments`): cuenta tipo `prestamo` con saldo = −capital. Pagar cuota ⇒ `pago_prestamo` (capital, cuenta como salida del mes) + `gasto` "Intereses y comisiones" (interés+IVA). Solo en orden; deshacer el último (`recordedAt`). Abono a capital: "plazo" (misma cuota) o "cuota" (mismo plazo); deshacer abono reconstruye al plazo original. Ya iniciados: `paidBefore` + saldo real opcional.
+- Movimientos con origin `prestamo`/`msi` no se editan ni borran sueltos (`assertNotOwnedBySource`); se manejan desde el préstamo/compra.
+- "Próximos pagos" unificado: `services/upcoming.ts` (programados + cuotas + recordatorio de tarjeta), `DueItem.source`.
+
 ## UI
 - Base 18px (`html { font-size: 112.5% }`, respeta el tamaño del sistema), botones ≥48px (usamos `min-h-14`), tokens de color en `globals.css` con modo oscuro. Nunca solo color: icono + texto.
 - Componentes base en `src/components/ui.tsx`. Sin estilos inline (la CSP los bloquea).

@@ -9,6 +9,7 @@ export const TX_KINDS = [
   "apoyo_enviado",
   "apoyo_recibido",
   "ajuste",
+  "compra_msi",
 ] as const;
 export type TxKind = (typeof TX_KINDS)[number];
 
@@ -24,6 +25,7 @@ export const TX_KIND_INFO: Record<TxKind, { label: string; icon: string }> = {
   apoyo_enviado: { label: "Apoyo enviado", icon: "🤝" },
   apoyo_recibido: { label: "Apoyo recibido", icon: "🎁" },
   ajuste: { label: "Corrección de saldo", icon: "✏️" },
+  compra_msi: { label: "Compra a meses", icon: "🗓️" },
 };
 
 /**
