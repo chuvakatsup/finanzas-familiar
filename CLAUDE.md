@@ -45,6 +45,16 @@ PWA familiar (Next.js 16) para responder "¿me alcanza el dinero este mes?". Usu
 - Automáticos (domiciliados): `ensureAutoSynced()` (`src/server/sync.ts`, cacheado por petición) los registra al abrir la app; nunca antes del día de alta, máximo 45 días atrás, y no recrea los que la persona borró.
 - Lo confirmado/saltado HOY sigue visible con "Deshacer" (campo `actedAt`).
 
+## Balance y semáforo (fase 4)
+- Fórmula en `src/domain/balance.ts` (`computeMonthBalance`, pura y probada): ingresos (registrados + fijos pendientes) − compromisos (pagos fijos pendientes) − gastos del mes − variable esperado (presupuesto restante; 0 en meses pasados, completo en futuros). Solo `gasto` y `apoyo_enviado` son salidas; pagos de tarjeta/transferencias/ajustes no.
+- Gasto "variable" = `gasto` con `origin = manual`.
+- Semáforo: rojo si falta; amarillo si sobra ≤ `umbralAmarillo`% de los ingresos (10 por defecto, en `users.prefs`); verde si sobra más; "sin-datos" si no hay nada.
+- `getMonthReport()` (`services/balance.ts`) junta movimientos, programados, presupuesto y preferencias de un mes.
+- Presupuesto: tabla `budgets` (fila con `category_id` null = general). `saveBudgets` reemplaza todo.
+- Letra y tema: en `users.prefs` y en cookies `fin_letra`/`fin_tema` (las lee el layout raíz → clase `letra-*` y `data-theme` en `<html>`). Se copian a la cookie al iniciar sesión.
+- Asistente de primer uso: `/bienvenida?paso=1|2|3|listo`; `prefs.bienvenidaHecha` lo oculta.
+- Barras de gráficas con SVG (atributo `width`), nunca `style` en línea (CSP).
+
 ## UI
 - Base 18px (`html { font-size: 112.5% }`, respeta el tamaño del sistema), botones ≥48px (usamos `min-h-14`), tokens de color en `globals.css` con modo oscuro. Nunca solo color: icono + texto.
 - Componentes base en `src/components/ui.tsx`. Sin estilos inline (la CSP los bloquea).

@@ -226,3 +226,18 @@ export const confirmOccurrenceSchema = z.object({
     .transform((v) => v || null)
     .pipe(z.uuid().nullable()),
 });
+
+// ---------------- Presupuesto y preferencias ----------------
+
+export const WARN_PCT_CHOICES = [5, 10, 15, 20, 25] as const;
+
+export const budgetFormSchema = z.object({
+  general: amountOrZeroSchema,
+  warnPct: z.coerce
+    .number()
+    .refine((n) => (WARN_PCT_CHOICES as readonly number[]).includes(n), "Elige una opción."),
+  byCategory: z.record(z.uuid(), amountOrZeroSchema),
+});
+
+export const LETRA_CHOICES = ["normal", "grande", "muy-grande"] as const;
+export const TEMA_CHOICES = ["sistema", "claro", "oscuro"] as const;

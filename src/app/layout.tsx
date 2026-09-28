@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { connection } from "next/server";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
+import { readDisplayPrefs } from "@/server/auth/display-prefs";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -25,8 +26,13 @@ export const viewport: Viewport = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Render dinámico: necesario para que cada respuesta lleve el nonce de la CSP.
   await connection();
+  const { letra, tema } = await readDisplayPrefs();
   return (
-    <html lang="es-MX" className="h-full antialiased">
+    <html
+      lang="es-MX"
+      className={`h-full antialiased ${letra !== "normal" ? `letra-${letra}` : ""}`}
+      data-theme={tema === "claro" ? "light" : tema === "oscuro" ? "dark" : undefined}
+    >
       <body className="min-h-full flex flex-col">
         {children}
         <ServiceWorkerRegister />

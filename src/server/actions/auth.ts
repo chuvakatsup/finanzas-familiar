@@ -9,7 +9,9 @@ import {
   setSessionCookie,
   userAgent,
 } from "@/server/auth/current";
-import { deleteSession } from "@/server/auth/sessions";
+import { deleteSession, validateSession } from "@/server/auth/sessions";
+import { writeDisplayPrefs } from "@/server/auth/display-prefs";
+import { getPrefs } from "@/server/services/prefs";
 import { isLimited, recordAttempt } from "@/server/auth/rate-limit";
 import { login } from "@/server/services/auth";
 import { acceptInvitation } from "@/server/services/invitations";
@@ -41,6 +43,9 @@ export async function loginAction(_prev: FormState, formData: FormData): Promise
     };
   }
   await setSessionCookie(result.token, result.expiresAt);
+  // Trae su tamaño de letra y tema a este dispositivo.
+  const user = await validateSession(getDb(), result.token);
+  if (user) await writeDisplayPrefs(await getPrefs(getDb(), user));
   redirect("/");
 }
 

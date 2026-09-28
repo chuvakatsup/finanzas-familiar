@@ -123,3 +123,11 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Tamaño de letra elegido en Ajustes (se suma al tamaño del sistema). */
+html.letra-grande {
+  font-size: 125%;
+}
+html.letra-muy-grande {
+  font-size: 137.5%;
+}

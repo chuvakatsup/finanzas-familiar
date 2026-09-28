@@ -29,9 +29,13 @@ const createdAt = () => timestamp("created_at", { withTimezone: true }).notNull(
 export const userRole = pgEnum("user_role", ["admin", "miembro"]);
 
 export type UserPrefs = {
-  /** Escala de letra relativa al tamaño del sistema (1 = normal). */
-  fontScale?: number;
-  theme?: "sistema" | "claro" | "oscuro";
+  /** Tamaño de letra (se suma al tamaño del sistema). */
+  letra?: "normal" | "grande" | "muy-grande";
+  tema?: "sistema" | "claro" | "oscuro";
+  /** % de los ingresos bajo el cual el semáforo se pone amarillo (10 por defecto). */
+  umbralAmarillo?: number;
+  /** Ya vio (o saltó) el asistente de primer uso. */
+  bienvenidaHecha?: boolean;
 };
 
 export const households = pgTable("households", {
@@ -309,5 +313,29 @@ export const scheduledOccurrences = pgTable(
   (t) => [
     uniqueIndex("occurrence_item_date_uq").on(t.itemId, t.dueDate),
     index("occurrence_user_idx").on(t.userId, t.dueDate),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Fase 4: presupuesto de gasto variable (general y opcional por categoría)
+// ---------------------------------------------------------------------------
+
+export const budgets = pgTable(
+  "budgets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // null = presupuesto general del mes.
+    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("budgets_general_uq").on(t.userId).where(sql`${t.categoryId} is null`),
+    uniqueIndex("budgets_category_uq").on(t.userId, t.categoryId).where(sql`${t.categoryId} is not null`),
+    check("budgets_amount_chk", sql`${t.amount} > 0`),
   ],
 );

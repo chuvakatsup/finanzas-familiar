@@ -7,11 +7,13 @@ import { Button, Card, PageTitle } from "@/components/ui";
 export const metadata: Metadata = { title: "Más" };
 
 const links = [
+  { href: "/mas/presupuesto", icon: "🎯", label: "Mi presupuesto", text: "Cuánto quieres gastar al mes" },
   { href: "/proximos", icon: "📅", label: "Próximos pagos", text: "Lo que toca pagar y recibir pronto" },
   { href: "/pagos-fijos", icon: "🧾", label: "Pagos fijos y servicios", text: "Luz, renta, teléfono, domiciliados" },
   { href: "/ingresos-fijos", icon: "💼", label: "Mis ingresos fijos", text: "Pensión, sueldo, lo que te llega seguido" },
   { href: "/movimientos", icon: "📋", label: "Mis movimientos", text: "Todo lo que has registrado, por mes" },
   { href: "/mas/categorias", icon: "🏷️", label: "Categorías", text: "Comida, transporte… cámbialas a tu gusto" },
+  { href: "/mas/ajustes", icon: "🔠", label: "Letra y colores", text: "Letra más grande, modo oscuro" },
   { href: "/mas/familia", icon: "👨‍👩‍👧", label: "Mi familia", text: "Quiénes están en el grupo" },
 ];
 
