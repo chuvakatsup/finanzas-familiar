@@ -1,0 +1,14 @@
+.git
+.next
+node_modules
+dist-scripts
+backups
+coverage
+playwright-report
+test-results
+.env
+.env.*
+!.env.example
+docker/backup/rclone/rclone.conf
+*.md
+!README.md

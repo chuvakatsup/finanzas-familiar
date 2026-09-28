@@ -1,0 +1,110 @@
+# Producción (VPS).  docker compose up -d --build
+# Nginx del host hace de proxy HTTPS hacia 127.0.0.1:${APP_HOST_PORT}. Ver deploy/nginx/.
+name: finanzas
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  app:
+    build: .
+    image: finanzas-app:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      APP_URL: ${APP_URL:?Falta APP_URL en .env}
+      COOKIE_SECURE: "true"
+    # Solo en localhost: nadie de fuera llega sin pasar por Nginx.
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-3020}:3000"
+    networks: [backend, frontend]
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
+      - /app/.next/cache:uid=1000,gid=1000,size=128m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
+    logging: *logging
+
+  db:
+    image: postgres:17.11-alpine3.24
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?Falta POSTGRES_DB}
+      TZ: America/Mazatlan
+    # SIN "ports": la BD solo existe dentro de la red interna.
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    shm_size: 128m
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging: *logging
+
+  backup:
+    build: ./docker/backup
+    image: finanzas-backup:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    user: "${BACKUP_UID:-1000}:${BACKUP_UID:-1000}"
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      TZ: America/Mazatlan
+      BACKUP_AGE_RECIPIENT: ${BACKUP_AGE_RECIPIENT:?Falta BACKUP_AGE_RECIPIENT (llave pública age)}
+      BACKUP_TIME: ${BACKUP_TIME:-03:15}
+      RCLONE_REMOTE: ${RCLONE_REMOTE:-}
+      RCLONE_CONFIG: /config/rclone.conf
+      BACKUP_PING_URL: ${BACKUP_PING_URL:-}
+    volumes:
+      - ./backups:/backups
+      - ./docker/backup/rclone:/config:ro
+    # frontend: necesita salida a internet para la copia externa (rclone) y el ping.
+    networks: [backend, frontend]
+    read_only: true
+    tmpfs: ["/tmp:size=256m"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
+    logging: *logging
+
+networks:
+  # Red interna sin salida a internet: aquí vive la BD.
+  backend:
+    internal: true
+  frontend:
+
+volumes:
+  pgdata:

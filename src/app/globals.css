@@ -1,0 +1,119 @@
+@import "tailwindcss";
+
+/*
+ * Tema pensado para personas mayores: letra base 18px (112.5% respeta el tamaño que
+ * cada quien tenga configurado en su celular), alto contraste, botones grandes.
+ * Colores como tokens; modo oscuro automático según el sistema.
+ */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef0f4;
+  --text: #111418;
+  --text-muted: #4a5260;
+  --border: #c9ced8;
+  --primary: #0b57d0;
+  --primary-hover: #0842a0;
+  --on-primary: #ffffff;
+  --ok: #146c2e;
+  --ok-bg: #e3f5e8;
+  --warn: #7a4a00;
+  --warn-bg: #fff3d6;
+  --danger: #b3261e;
+  --danger-bg: #fde7e5;
+  --focus: #ff9d00;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #101216;
+    --surface: #1a1d23;
+    --surface-2: #242830;
+    --text: #f2f4f7;
+    --text-muted: #b6bdc9;
+    --border: #3d434f;
+    --primary: #8ab4f8;
+    --primary-hover: #aecbfa;
+    --on-primary: #0b1b33;
+    --ok: #7ddc94;
+    --ok-bg: #11301b;
+    --warn: #ffcf70;
+    --warn-bg: #3a2a07;
+    --danger: #ffb4ab;
+    --danger-bg: #43110d;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #101216;
+  --surface: #1a1d23;
+  --surface-2: #242830;
+  --text: #f2f4f7;
+  --text-muted: #b6bdc9;
+  --border: #3d434f;
+  --primary: #8ab4f8;
+  --primary-hover: #aecbfa;
+  --on-primary: #0b1b33;
+  --ok: #7ddc94;
+  --ok-bg: #11301b;
+  --warn: #ffcf70;
+  --warn-bg: #3a2a07;
+  --danger: #ffb4ab;
+  --danger-bg: #43110d;
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-ok: var(--ok);
+  --color-ok-bg: var(--ok-bg);
+  --color-warn: var(--warn);
+  --color-warn-bg: var(--warn-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html {
+  font-size: 112.5%; /* 18px con la configuración normal del sistema */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  line-height: 1.5;
+}
+
+/* Foco muy visible para quien navega con teclado o lector de pantalla. */
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Los números de dinero con ancho fijo para que no "bailen". */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

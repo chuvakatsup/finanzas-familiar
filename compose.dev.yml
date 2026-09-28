@@ -1,0 +1,43 @@
+# Solo para desarrollo en tu PC: bases de datos locales (no usar en el VPS).
+#   pnpm db:up   → levanta ambas
+#   pnpm db:down → las apaga
+name: finanzas-dev
+
+services:
+  db:
+    image: postgres:17.11-alpine3.24
+    environment:
+      POSTGRES_USER: finanzas
+      POSTGRES_PASSWORD: finanzas
+      POSTGRES_DB: finanzas
+      TZ: America/Mazatlan
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pgdata-dev:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finanzas -d finanzas"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # BD desechable para pruebas de integración y e2e (en RAM, se borra al apagarla).
+  db-test:
+    image: postgres:17.11-alpine3.24
+    environment:
+      POSTGRES_USER: finanzas
+      POSTGRES_PASSWORD: finanzas
+      POSTGRES_DB: finanzas_test
+      TZ: America/Mazatlan
+    ports:
+      - "127.0.0.1:5434:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finanzas -d finanzas_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata-dev:
