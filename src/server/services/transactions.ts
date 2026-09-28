@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { DbOrTx } from "@/server/db";
-import { accounts, categories, transactions } from "@/server/db/schema";
+import { accounts, categories, scheduledOccurrences, transactions } from "@/server/db/schema";
 import { audit } from "@/server/audit";
 import { type Actor, AuthzError } from "@/server/authz";
 import { assertUuid } from "@/server/ids";
@@ -51,6 +51,10 @@ export type CategorizedInput = {
   note: string | null;
 };
 
+/** Quién generó el movimiento (vacío = lo capturó la persona). */
+export type TxMeta = { origin: Tx["origin"]; sourceId: string | null };
+const MANUAL: TxMeta = { origin: "manual", sourceId: null };
+
 export type TransferInput = {
   amount: Cents;
   fromAccountId: string;
@@ -60,7 +64,7 @@ export type TransferInput = {
 };
 
 /** Gasto: sale dinero de la cuenta (con tarjeta de crédito, aumenta la deuda). */
-export async function createExpense(db: DbOrTx, actor: Actor, input: CategorizedInput) {
+export async function createExpense(db: DbOrTx, actor: Actor, input: CategorizedInput, meta: TxMeta = MANUAL) {
   await ownedAccounts(db, actor, [input.accountId]);
   await getOwnedCategory(db, actor, input.categoryId, "gasto");
   const [tx] = await db
@@ -73,6 +77,7 @@ export async function createExpense(db: DbOrTx, actor: Actor, input: Categorized
       fromAccountId: input.accountId,
       categoryId: input.categoryId,
       note: input.note,
+      ...meta,
     })
     .returning();
   await logTx(db, actor, "crear", tx);
@@ -80,7 +85,7 @@ export async function createExpense(db: DbOrTx, actor: Actor, input: Categorized
 }
 
 /** Ingreso extra: entra dinero a la cuenta. */
-export async function createIncome(db: DbOrTx, actor: Actor, input: CategorizedInput) {
+export async function createIncome(db: DbOrTx, actor: Actor, input: CategorizedInput, meta: TxMeta = MANUAL) {
   const owned = await ownedAccounts(db, actor, [input.accountId]);
   if (owned.get(input.accountId)!.kind === "credito") {
     throw new AuthzError("Un ingreso no puede entrar a una tarjeta de crédito. Elige efectivo o débito.");
@@ -96,6 +101,7 @@ export async function createIncome(db: DbOrTx, actor: Actor, input: CategorizedI
       toAccountId: input.accountId,
       categoryId: input.categoryId,
       note: input.note,
+      ...meta,
     })
     .returning();
   await logTx(db, actor, "crear", tx);
@@ -144,7 +150,8 @@ export async function updateTransaction(
 ) {
   const before = await getOwnedTx(db, actor, id);
   if (before.deletedAt) throw new AuthzError("Ese movimiento fue borrado.");
-  if (before.origin !== "manual") {
+  // Los confirmados desde un pago/ingreso programado sí se pueden corregir (monto real, fecha, etc.).
+  if (before.origin !== "manual" && before.origin !== "recurrente") {
     throw new AuthzError("Este movimiento se generó automáticamente; cámbialo desde donde se creó.");
   }
   const previousAccounts = [before.fromAccountId, before.toAccountId].filter((x): x is string => !!x);
@@ -206,6 +213,15 @@ export async function deleteTransaction(db: DbOrTx, actor: Actor, id: string) {
 export async function restoreTransaction(db: DbOrTx, actor: Actor, id: string) {
   const before = await getOwnedTx(db, actor, id);
   if (!before.deletedAt) return before;
+  if (before.origin === "recurrente") {
+    // Si esa fecha ya se volvió a confirmar con otro movimiento, recuperar éste lo contaría doble.
+    const [occ] = await db
+      .select({ id: scheduledOccurrences.id })
+      .from(scheduledOccurrences)
+      .where(and(eq(scheduledOccurrences.transactionId, id), eq(scheduledOccurrences.userId, actor.id)))
+      .limit(1);
+    if (!occ) throw new AuthzError("Ese pago ya se volvió a registrar, así que no se puede recuperar este.");
+  }
   const [after] = await db
     .update(transactions)
     .set({ deletedAt: null })

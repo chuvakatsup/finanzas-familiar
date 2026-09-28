@@ -19,6 +19,7 @@ import {
 import { ACCOUNT_KINDS } from "@/domain/accounts";
 import { CATEGORY_KINDS } from "@/domain/categories";
 import { TX_KINDS, TX_ORIGINS } from "@/domain/transactions";
+import { FREQUENCIES } from "@/domain/recurrence";
 
 // Convención: dinero SIEMPRE en centavos enteros (bigint, mode "number").
 // Fechas sin hora como `date`; instantes como timestamptz.
@@ -238,5 +239,75 @@ export const transactions = pgTable(
     check("tx_amount_positive_chk", sql`${t.amount} > 0`),
     check("tx_has_account_chk", sql`${t.fromAccountId} is not null or ${t.toAccountId} is not null`),
     check("tx_distinct_accounts_chk", sql`${t.fromAccountId} is distinct from ${t.toAccountId}`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Fase 3: ingresos fijos y pagos recurrentes ("programados")
+// ---------------------------------------------------------------------------
+
+export const scheduleKind = pgEnum("schedule_kind", ["ingreso", "pago"]);
+export const frequency = pgEnum("frequency", FREQUENCIES);
+export const occurrenceStatus = pgEnum("occurrence_status", ["confirmado", "omitido"]);
+
+export const scheduledItems = pgTable(
+  "scheduled_items",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: scheduleKind("kind").notNull(),
+    name: text("name").notNull(),
+    amount: money("amount").notNull(),
+    // true = el monto cambia (luz, agua): se usa como estimado y se ajusta al confirmar.
+    amountIsEstimate: boolean("amount_is_estimate").notNull().default(false),
+    frequency: frequency("frequency").notNull(),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }),
+    day1: smallint("day1"),
+    day2: smallint("day2"),
+    // Cuenta destino (ingreso) o de cargo (pago).
+    accountId: uuid("account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "restrict" }),
+    categoryId: uuid("category_id").references(() => categories.id, { onDelete: "restrict" }),
+    // Domiciliado / depósito automático: se registra solo al llegar la fecha.
+    autoRegister: boolean("auto_register").notNull().default(false),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("scheduled_user_idx").on(t.userId, t.kind),
+    check("scheduled_amount_chk", sql`${t.amount} > 0`),
+    check("scheduled_day1_chk", sql`${t.day1} is null or ${t.day1} between 1 and 31`),
+    check("scheduled_day2_chk", sql`${t.day2} is null or ${t.day2} between 1 and 31`),
+    check("scheduled_dates_chk", sql`${t.endDate} is null or ${t.endDate} >= ${t.startDate}`),
+  ],
+);
+
+/**
+ * Lo que pasó con cada fecha de un programado. Si no hay renglón, la fecha está pendiente.
+ * "confirmado" con movimiento borrado se considera pendiente otra vez.
+ */
+export const scheduledOccurrences = pgTable(
+  "scheduled_occurrences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    itemId: uuid("item_id")
+      .notNull()
+      .references(() => scheduledItems.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    dueDate: date("due_date", { mode: "string" }).notNull(),
+    status: occurrenceStatus("status").notNull(),
+    transactionId: uuid("transaction_id").references(() => transactions.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    uniqueIndex("occurrence_item_date_uq").on(t.itemId, t.dueDate),
+    index("occurrence_user_idx").on(t.userId, t.dueDate),
   ],
 );

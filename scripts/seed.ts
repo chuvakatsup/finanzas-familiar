@@ -5,12 +5,14 @@
  */
 import { and, eq } from "drizzle-orm";
 import { closeDb, getDb } from "@/server/db";
-import { accounts, categories, households, transactions, users } from "@/server/db/schema";
+import { accounts, categories, households, scheduledItems, transactions, users } from "@/server/db/schema";
 import { hashPassword } from "@/server/auth/password";
 import type { Actor } from "@/server/authz";
 import { createAccount } from "@/server/services/accounts";
 import { ensureUserDefaults } from "@/server/services/categories";
 import { createExpense, createIncome, createTransfer } from "@/server/services/transactions";
+import { createScheduled } from "@/server/services/scheduled";
+import { addDays } from "@/domain/recurrence";
 import { todayIso } from "@/domain/dates";
 
 if (process.env.NODE_ENV === "production" && process.env.SEED_ALLOW !== "1") {
@@ -78,6 +80,30 @@ async function sampleData(actor: Actor, kind: "mama" | "hijo") {
   await createTransfer(db, actor, { amount: 150000, fromAccountId: debito.id, toAccountId: credito.id, date: day(6), note: null });
 }
 
+/** Ingresos fijos y pagos recurrentes de ejemplo. */
+async function sampleScheduled(actor: Actor, kind: "mama" | "hijo") {
+  const accs = await db.select().from(accounts).where(eq(accounts.userId, actor.id));
+  const debito = accs.find((a) => a.kind === "debito")!;
+  const credito = accs.find((a) => a.kind === "credito")!;
+  const cat = (n: string) => categoryId(actor.id, n);
+  const base = { amountIsEstimate: false, nextDate: null, day1: null, day2: null, autoRegister: false };
+  const today = todayIso();
+  const items =
+    kind === "mama"
+      ? [
+          { ...base, kind: "ingreso" as const, name: "Pensión IMSS", amount: 600000, frequency: "quincenal" as const, day1: 15, day2: 31, accountId: debito.id, categoryId: await cat("Pensión"), autoRegister: true },
+          { ...base, kind: "pago" as const, name: "Luz CFE", amount: 45000, amountIsEstimate: true, frequency: "bimestral" as const, nextDate: addDays(today, 6), accountId: debito.id, categoryId: await cat("Luz, agua y gas") },
+          { ...base, kind: "pago" as const, name: "Teléfono Telmex", amount: 39900, frequency: "mensual" as const, day1: 10, accountId: debito.id, categoryId: await cat("Teléfono e internet"), autoRegister: true },
+          { ...base, kind: "pago" as const, name: "Agua", amount: 18000, amountIsEstimate: true, frequency: "mensual" as const, day1: 20, accountId: debito.id, categoryId: await cat("Luz, agua y gas") },
+        ]
+      : [
+          { ...base, kind: "ingreso" as const, name: "Sueldo", amount: 925000, frequency: "quincenal" as const, day1: 15, day2: 31, accountId: debito.id, categoryId: await cat("Sueldo") },
+          { ...base, kind: "pago" as const, name: "Renta", amount: 800000, frequency: "mensual" as const, day1: 1, accountId: debito.id, categoryId: await cat("Casa") },
+          { ...base, kind: "pago" as const, name: "Netflix", amount: 29900, frequency: "mensual" as const, day1: 3, accountId: credito.id, categoryId: await cat("Diversión"), autoRegister: true },
+        ];
+  for (const item of items) await createScheduled(db, actor, item);
+}
+
 try {
   let [h] = await db.select().from(households).where(eq(households.name, DEMO.household)).limit(1);
   if (!h) [h] = await db.insert(households).values({ name: DEMO.household }).returning();
@@ -93,9 +119,10 @@ try {
     }
     await ensureUserDefaults(db, u.id);
     const [hasTx] = await db.select({ id: transactions.id }).from(transactions).where(eq(transactions.userId, u.id)).limit(1);
-    if (!hasTx) {
-      await sampleData({ id: u.id, householdId: u.householdId, role: u.role }, key);
-    }
+    const actor = { id: u.id, householdId: u.householdId, role: u.role };
+    if (!hasTx) await sampleData(actor, key);
+    const [hasScheduled] = await db.select({ id: scheduledItems.id }).from(scheduledItems).where(eq(scheduledItems.userId, u.id)).limit(1);
+    if (!hasScheduled) await sampleScheduled(actor, key);
   }
   console.log("✔ Seed listo:");
   console.log(`  Hijo (admin): ${DEMO.hijo.email} / ${DEMO.hijo.password}`);

@@ -8,7 +8,7 @@ import { ensureUserDefaults } from "@/server/services/categories";
 /** Borra todos los datos (se llama en beforeEach). */
 export async function resetDb() {
   await getDb().execute(sql`
-    truncate table transactions, categories, accounts, audit_log, auth_attempts, password_reset_tokens, invitations, sessions, users, households
+    truncate table scheduled_occurrences, scheduled_items, transactions, categories, accounts, audit_log, auth_attempts, password_reset_tokens, invitations, sessions, users, households
     restart identity cascade
   `);
 }

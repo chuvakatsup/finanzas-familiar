@@ -37,6 +37,14 @@ PWA familiar (Next.js 16) para responder "¿me alcanza el dinero este mes?". Usu
 - Ojo Drizzle: dentro de `sql` usado en un `select`, las columnas salen sin tabla; en subconsultas calificar a mano (`"accounts"."id"`).
 - Préstamos (`kind = prestamo`) aún no se pueden crear: llegan en la fase 6 con su tabla de amortización.
 
+## Ingresos fijos y pagos recurrentes (fase 3)
+- Una tabla `scheduled_items` (kind `ingreso`|`pago`) + `scheduled_occurrences` (qué pasó con cada fecha). **Sin renglón = pendiente**; `confirmado` con movimiento borrado = pendiente otra vez; `omitido` = "no aplica esta vez".
+- Fechas: `src/domain/recurrence.ts` (`occurrences`, `nextOccurrence`, `isOccurrence`). Día 31 = último día del mes. Mensual/quincenal empiezan el 1° del mes de alta (para que cuenten las fechas de este mes); las demás frecuencias usan la fecha "próxima" como ancla.
+- Confirmar crea un gasto/ingreso normal con `origin = "recurrente"`, `sourceId = item.id` y el nombre en `note`. Esos movimientos sí se pueden editar.
+- `pg_advisory_xact_lock` por (programado, fecha) evita doble registro; siempre confirmar dentro de `db.transaction`.
+- Automáticos (domiciliados): `ensureAutoSynced()` (`src/server/sync.ts`, cacheado por petición) los registra al abrir la app; nunca antes del día de alta, máximo 45 días atrás, y no recrea los que la persona borró.
+- Lo confirmado/saltado HOY sigue visible con "Deshacer" (campo `actedAt`).
+
 ## UI
 - Base 18px (`html { font-size: 112.5% }`, respeta el tamaño del sistema), botones ≥48px (usamos `min-h-14`), tokens de color en `globals.css` con modo oscuro. Nunca solo color: icono + texto.
 - Componentes base en `src/components/ui.tsx`. Sin estilos inline (la CSP los bloquea).

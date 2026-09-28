@@ -2,6 +2,7 @@ import { z } from "zod";
 import { CREATABLE_ACCOUNT_KINDS } from "@/domain/accounts";
 import { CATEGORY_KINDS } from "@/domain/categories";
 import { parseMoney } from "@/domain/money";
+import { FREQUENCIES } from "@/domain/recurrence";
 
 /** Tope de seguridad: 100 millones de pesos. */
 const MAX_CENTS = 10_000_000_000;
@@ -139,4 +140,89 @@ export const historyFiltersSchema = z.object({
   cuenta: z.uuid().optional().catch(undefined),
   categoria: z.uuid().optional().catch(undefined),
   q: z.string().trim().max(60).optional().catch(undefined),
+});
+
+// ---------------- Programados (ingresos fijos y pagos recurrentes) ----------------
+
+const dayOfMonth = z
+  .string()
+  .trim()
+  .transform((v, ctx) => {
+    const n = Number(v);
+    if (!Number.isInteger(n) || n < 1 || n > 31) {
+      ctx.addIssue({ code: "custom", message: "Elige un día del 1 al 31 (o “último”)." });
+      return z.NEVER;
+    }
+    return n;
+  });
+
+export const scheduledFormSchema = z
+  .object({
+    kind: z.enum(["ingreso", "pago"]),
+    name: z.string().trim().min(1, "Ponle un nombre, por ejemplo “Luz” o “Pensión”.").max(40, "Nombre muy largo."),
+    amount: amountSchema,
+    amountIsEstimate: z.boolean(),
+    frequency: z.enum(FREQUENCIES, { error: "Elige cada cuándo toca." }),
+    /** Próxima fecha (semanal, catorcenal, bimestral, anual, única). */
+    nextDate: z.string().trim(),
+    day1: z.string().trim(),
+    day2: z.string().trim(),
+    accountId: z.uuid({ error: "Elige la cuenta." }),
+    categoryId: z.uuid({ error: "Elige una categoría." }),
+    autoRegister: z.boolean(),
+  })
+  .superRefine((d, ctx) => {
+    const needsDate = !["mensual", "quincenal"].includes(d.frequency);
+    if (needsDate && !isoDateSchema.safeParse(d.nextDate).success) {
+      ctx.addIssue({ code: "custom", path: ["nextDate"], message: "Elige la fecha." });
+    }
+    if (d.frequency === "mensual" && !dayOfMonth.safeParse(d.day1).success) {
+      ctx.addIssue({ code: "custom", path: ["day1"], message: "Elige el día del mes." });
+    }
+    if (d.frequency === "quincenal") {
+      const a = dayOfMonth.safeParse(d.day1);
+      const b = dayOfMonth.safeParse(d.day2);
+      if (!a.success) ctx.addIssue({ code: "custom", path: ["day1"], message: "Elige el primer día." });
+      if (!b.success) ctx.addIssue({ code: "custom", path: ["day2"], message: "Elige el segundo día." });
+      if (a.success && b.success && a.data === b.data) {
+        ctx.addIssue({ code: "custom", path: ["day2"], message: "Los dos días deben ser diferentes." });
+      }
+    }
+  })
+  .transform((d) => ({
+    kind: d.kind,
+    name: d.name,
+    amount: d.amount,
+    amountIsEstimate: d.amountIsEstimate,
+    frequency: d.frequency,
+    nextDate: ["mensual", "quincenal"].includes(d.frequency) ? null : d.nextDate,
+    day1: d.frequency === "mensual" || d.frequency === "quincenal" ? Number(d.day1) : null,
+    day2: d.frequency === "quincenal" ? Number(d.day2) : null,
+    accountId: d.accountId,
+    categoryId: d.categoryId,
+    autoRegister: d.autoRegister,
+  }));
+export type ScheduledFormInput = z.infer<typeof scheduledFormSchema>;
+
+export const confirmOccurrenceSchema = z.object({
+  itemId: z.uuid(),
+  dueDate: isoDateSchema,
+  /** Vacío = usar el monto programado. */
+  amount: z
+    .string()
+    .trim()
+    .transform((v, ctx) => {
+      if (v === "") return null;
+      const r = amountSchema.safeParse(v);
+      if (!r.success) {
+        ctx.addIssue({ code: "custom", message: r.error.issues[0]?.message ?? "Revisa el monto." });
+        return z.NEVER;
+      }
+      return r.data;
+    }),
+  accountId: z
+    .string()
+    .trim()
+    .transform((v) => v || null)
+    .pipe(z.uuid().nullable()),
 });

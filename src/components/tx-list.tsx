@@ -6,7 +6,11 @@ import { groupByDate } from "@/domain/summary";
 import { TX_KIND_INFO } from "@/domain/transactions";
 import { TxAmount } from "./money";
 
+/** Los confirmados desde un pago/ingreso fijo guardan su nombre en la nota ("Netflix"). */
+const fromSchedule = (t: TxRow) => t.origin === "recurrente" && !!t.note;
+
 function title(t: TxRow) {
+  if (fromSchedule(t)) return t.note!;
   if (t.categoryName) return t.categoryName;
   return TX_KIND_INFO[t.kind].label;
 }
@@ -15,7 +19,8 @@ function subtitle(t: TxRow) {
   const parts: string[] = [];
   if (t.fromAccountName && t.toAccountName) parts.push(`${t.fromAccountName} → ${t.toAccountName}`);
   else parts.push(t.fromAccountName ?? t.toAccountName ?? "");
-  if (t.note) parts.push(t.note);
+  if (fromSchedule(t)) parts.unshift(t.categoryName ?? "");
+  else if (t.note) parts.push(t.note);
   return parts.filter(Boolean).join(" · ");
 }
 

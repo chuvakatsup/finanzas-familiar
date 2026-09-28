@@ -15,6 +15,13 @@
       "when": 1790633502049,
       "tag": "0001_cuentas_movimientos",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790635784934,
+      "tag": "0002_programados",
+      "breakpoints": true
     }
   ]
 }
