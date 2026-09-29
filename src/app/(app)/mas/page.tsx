@@ -11,6 +11,7 @@ const links = [
   { href: "/proximos", icon: "📅", label: "Próximos pagos", text: "Lo que toca pagar y recibir pronto" },
   { href: "/pagos-fijos", icon: "🧾", label: "Pagos fijos y servicios", text: "Luz, renta, teléfono, domiciliados" },
   { href: "/ingresos-fijos", icon: "💼", label: "Mis ingresos fijos", text: "Pensión, sueldo, lo que te llega seguido" },
+  { href: "/apoyos", icon: "🤝", label: "Apoyos familiares", text: "Enviar y recibir ayuda de la familia" },
   { href: "/prestamos", icon: "📄", label: "Mis préstamos", text: "Cuánto debes y tu tabla de pagos" },
   { href: "/movimientos", icon: "📋", label: "Mis movimientos", text: "Todo lo que has registrado, por mes" },
   { href: "/mas/categorias", icon: "🏷️", label: "Categorías", text: "Comida, transporte… cámbialas a tu gusto" },

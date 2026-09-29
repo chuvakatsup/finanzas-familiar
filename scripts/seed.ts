@@ -8,6 +8,8 @@ import { closeDb, getDb } from "@/server/db";
 import { accounts, categories, households, installmentPurchases, loans, scheduledItems, transactions, users } from "@/server/db/schema";
 import { createInstallmentPurchase } from "@/server/services/msi";
 import { createLoan } from "@/server/services/loans";
+import { sendSupport } from "@/server/services/support";
+import { supportTransfers } from "@/server/db/schema";
 import { hashPassword } from "@/server/auth/password";
 import type { Actor } from "@/server/authz";
 import { createAccount } from "@/server/services/accounts";
@@ -155,6 +157,16 @@ try {
     const [hasLoan] = await db.select({ id: loans.id }).from(loans).where(eq(loans.userId, u.id)).limit(1);
     const [hasMsi] = await db.select({ id: installmentPurchases.id }).from(installmentPurchases).where(eq(installmentPurchases.userId, u.id)).limit(1);
     if (!hasLoan && !hasMsi) await sampleCredit(actor, key);
+  }
+  // Un apoyo del hijo a mamá, pendiente de confirmar (para ver el "¿Ya lo recibiste?").
+  const [hijo] = await db.select().from(users).where(eq(users.email, DEMO.hijo.email));
+  const [mama] = await db.select().from(users).where(eq(users.email, DEMO.mama.email));
+  const [hasSupport] = await db.select({ id: supportTransfers.id }).from(supportTransfers).where(eq(supportTransfers.senderId, hijo.id)).limit(1);
+  if (!hasSupport) {
+    const [bancoHijo] = await db.select().from(accounts).where(and(eq(accounts.userId, hijo.id), eq(accounts.kind, "debito")));
+    await sendSupport(db, { id: hijo.id, householdId: hijo.householdId, role: hijo.role }, {
+      recipientId: mama.id, amount: 150000, date: todayIso(), fromAccountId: bancoHijo.id, purpose: "deuda", note: "para tu tarjeta Liverpool",
+    });
   }
   console.log("✔ Seed listo:");
   console.log(`  Hijo (admin): ${DEMO.hijo.email} / ${DEMO.hijo.password}`);

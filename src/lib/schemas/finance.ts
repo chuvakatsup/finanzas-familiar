@@ -408,3 +408,42 @@ export const prepaySchema = z.object({
   fromAccountId: z.uuid({ error: "Elige con qué cuenta pagaste." }),
   mode: z.enum(["plazo", "cuota"], { error: "Elige qué prefieres." }),
 });
+
+// ---------------- Apoyos familiares ----------------
+
+export const sendSupportSchema = z.object({
+  recipientId: z.uuid({ error: "Elige a quién le mandas el apoyo." }),
+  amount: amountSchema,
+  date: isoDateSchema,
+  fromAccountId: z.uuid({ error: "Elige de qué cuenta sale." }),
+  purpose: z.enum(["general", "deuda"], { error: "Elige para qué es." }),
+  note: z
+    .string()
+    .trim()
+    .max(120, "La nota es muy larga.")
+    .transform((v) => v || null),
+  repeat: z.enum(["no", "semanal", "quincenal", "mensual"]).default("no"),
+});
+
+export const editSupportSchema = sendSupportSchema.pick({ amount: true, date: true, fromAccountId: true, note: true });
+
+export const receiveSupportSchema = z
+  .object({
+    accountId: z.uuid({ error: "Elige a qué cuenta te llegó." }),
+    apply: z.string().trim(),
+  })
+  .transform((d, ctx) => {
+    // apply: "ninguno" | "tarjeta:<id>" | "cuota:<id>" | "abono:<id>"
+    if (d.apply === "" || d.apply === "ninguno") return { accountId: d.accountId, apply: { kind: "ninguno" as const } };
+    const [kind, id] = d.apply.split(":");
+    const ok = z.uuid().safeParse(id);
+    if (!ok.success || !["tarjeta", "cuota", "abono"].includes(kind)) {
+      ctx.addIssue({ code: "custom", path: ["apply"], message: "Elige a qué deuda lo aplicas." });
+      return z.NEVER;
+    }
+    const apply =
+      kind === "tarjeta"
+        ? { kind: "tarjeta" as const, cardId: ok.data }
+        : { kind: kind as "cuota" | "abono", loanId: ok.data };
+    return { accountId: d.accountId, apply };
+  });

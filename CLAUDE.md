@@ -63,6 +63,15 @@ PWA familiar (Next.js 16) para responder "¿me alcanza el dinero este mes?". Usu
 - Movimientos con origin `prestamo`/`msi` no se editan ni borran sueltos (`assertNotOwnedBySource`); se manejan desde el préstamo/compra.
 - "Próximos pagos" unificado: `services/upcoming.ts` (programados + cuotas + recordatorio de tarjeta), `DueItem.source`.
 
+## Apoyos familiares (fase 7)
+- `support_transfers`: `enviado` → `recibido` | `cancelado`. Solo emisor y receptor lo ven (`getVisible` filtra por ambos); receptor debe ser de la MISMA familia.
+- Al enviar: movimiento `apoyo_enviado` (origin `apoyo`) en la cuenta del emisor; cuenta como salida del mes (`spent.support`), no como consumo.
+- Privacidad: quien envía NO ve las cuentas/deudas de quien recibe; solo marca "para una deuda". Quien recibe elige al confirmar: solo recibir, pagar su tarjeta, siguiente cuota o abono a capital (`receiveSupport`).
+- Pendientes cuentan como ingreso esperado del receptor si `prefs.apoyosPendientesCuentan` (default true). "Todavía no" = `snoozedUntil` mañana.
+- Deshacer confirmación: solo si el pago aplicado al préstamo sigue siendo el último (se compara `appliedTxId` con el capital del último pago).
+- Recurrentes: `support_schedules`; `syncSupportSchedules` los genera al abrir la app el emisor O el receptor; índice único (schedule, fecha) + candado evita duplicados. Futuros del mes = compromiso (emisor) / esperado (receptor).
+- Lo confirmado HOY sigue en la bandeja con "Deshacer".
+
 ## UI
 - Base 18px (`html { font-size: 112.5% }`, respeta el tamaño del sistema), botones ≥48px (usamos `min-h-14`), tokens de color en `globals.css` con modo oscuro. Nunca solo color: icono + texto.
 - Componentes base en `src/components/ui.tsx`. Sin estilos inline (la CSP los bloquea).

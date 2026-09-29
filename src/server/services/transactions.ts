@@ -152,6 +152,7 @@ export async function updateTransaction(
   if (before.deletedAt) throw new AuthzError("Ese movimiento fue borrado.");
   // Los confirmados desde un pago/ingreso programado sí se pueden corregir (monto real, fecha, etc.).
   if (before.origin !== "manual" && before.origin !== "recurrente") {
+    // (préstamos, compras a meses y apoyos se cambian desde su propia pantalla)
     throw new AuthzError("Este movimiento se generó automáticamente; cámbialo desde donde se creó.");
   }
   const previousAccounts = [before.fromAccountId, before.toAccountId].filter((x): x is string => !!x);
@@ -199,8 +200,8 @@ export async function updateTransaction(
 
 /** Movimientos que pertenecen a un préstamo o compra a meses: se cambian desde ahí, no sueltos. */
 function assertNotOwnedBySource(tx: Tx, opts: { fromSource?: boolean }) {
-  if (!opts.fromSource && (tx.origin === "prestamo" || tx.origin === "msi")) {
-    throw new AuthzError("Este movimiento es parte de un préstamo o compra a meses. Cámbialo desde ahí.");
+  if (!opts.fromSource && (tx.origin === "prestamo" || tx.origin === "msi" || tx.origin === "apoyo")) {
+    throw new AuthzError("Este movimiento es parte de un préstamo, compra a meses o apoyo. Cámbialo desde ahí.");
   }
 }
 

@@ -66,6 +66,9 @@ export default async function MonthPage({ searchParams }: PageProps<"/mes">) {
             sign="+"
           />
         ))}
+        {report.supportDue.expectedIncome.map((s, i) => (
+          <Row key={`si${i}`} label={`Apoyo de ${s.from} (por confirmar)`} hint={capitalize(formatDay(s.date))} amount={s.amount} sign="+" />
+        ))}
         <Row label="Total de ingresos" amount={b.income.total} strong />
       </Block>
 
@@ -104,6 +107,9 @@ export default async function MonthPage({ searchParams }: PageProps<"/mes">) {
               sign="−"
             />
           ))}
+        {report.supportDue.commitments.map((s, i) => (
+          <Row key={`sc${i}`} label={`Apoyo automático a ${s.to}`} hint={capitalize(formatDay(s.date))} amount={s.amount} sign="−" />
+        ))}
         {b.expectedVariable > 0 && (
           <Row
             label="Apartado para gastos del resto del mes"

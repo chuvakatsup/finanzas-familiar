@@ -35,6 +35,8 @@ export type UserPrefs = {
   tema?: "sistema" | "claro" | "oscuro";
   /** % de los ingresos bajo el cual el semáforo se pone amarillo (10 por defecto). */
   umbralAmarillo?: number;
+  /** Los apoyos que me enviaron y aún no confirmo cuentan como ingreso esperado (true por defecto). */
+  apoyosPendientesCuentan?: boolean;
   /** Ya vio (o saltó) el asistente de primer uso. */
   bienvenidaHecha?: boolean;
 };
@@ -464,5 +466,91 @@ export const loanPayments = pgTable(
     index("loan_payments_loan_idx").on(t.loanId, t.dueDate),
     index("loan_payments_user_idx").on(t.userId, t.dueDate),
     uniqueIndex("loan_payments_cuota_uq").on(t.loanId, t.number).where(sql`${t.kind} = 'cuota'`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Fase 7: apoyos familiares
+// ---------------------------------------------------------------------------
+
+export const supportStatus = pgEnum("support_status", ["enviado", "recibido", "cancelado"]);
+export const supportPurpose = pgEnum("support_purpose", ["general", "deuda"]);
+/** Cómo lo aplicó quien lo recibió (si era para una deuda). */
+export const supportApplied = pgEnum("support_applied", ["ninguno", "tarjeta", "cuota", "abono"]);
+
+/** Apoyos recurrentes (cada semana/quincena/mes): generan un apoyo "enviado" en cada fecha. */
+export const supportSchedules = pgTable(
+  "support_schedules",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    senderId: uuid("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    frequency: frequency("frequency").notNull(),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    day1: smallint("day1"),
+    day2: smallint("day2"),
+    fromAccountId: uuid("from_account_id")
+      .notNull()
+      .references(() => accounts.id, { onDelete: "restrict" }),
+    purpose: supportPurpose("purpose").notNull().default("general"),
+    note: text("note"),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("support_schedules_sender_idx").on(t.senderId),
+    index("support_schedules_recipient_idx").on(t.recipientId),
+    check("support_schedules_amount_chk", sql`${t.amount} > 0`),
+    check("support_schedules_people_chk", sql`${t.senderId} <> ${t.recipientId}`),
+  ],
+);
+
+export const supportTransfers = pgTable(
+  "support_transfers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    senderId: uuid("sender_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    note: text("note"),
+    purpose: supportPurpose("purpose").notNull().default("general"),
+    status: supportStatus("status").notNull().default("enviado"),
+    // Egreso "Apoyo enviado" en la cuenta de quien envía.
+    senderTxId: uuid("sender_tx_id").references(() => transactions.id, { onDelete: "set null" }),
+    // Ingreso "Apoyo recibido" de quien recibe (al confirmar).
+    recipientTxId: uuid("recipient_tx_id").references(() => transactions.id, { onDelete: "set null" }),
+    appliedKind: supportApplied("applied_kind").notNull().default("ninguno"),
+    // Movimiento con que se aplicó: pago a la tarjeta, o capital de la cuota/abono del préstamo.
+    appliedTxId: uuid("applied_tx_id").references(() => transactions.id, { onDelete: "set null" }),
+    appliedLoanId: uuid("applied_loan_id").references(() => loans.id, { onDelete: "set null" }),
+    // "Todavía no": no se vuelve a preguntar hasta esta fecha.
+    snoozedUntil: date("snoozed_until", { mode: "string" }),
+    scheduleId: uuid("schedule_id").references(() => supportSchedules.id, { onDelete: "set null" }),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("support_sender_idx").on(t.senderId, t.date),
+    index("support_recipient_idx").on(t.recipientId, t.status),
+    uniqueIndex("support_schedule_date_uq").on(t.scheduleId, t.date).where(sql`${t.scheduleId} is not null`),
+    check("support_amount_chk", sql`${t.amount} > 0`),
+    check("support_people_chk", sql`${t.senderId} <> ${t.recipientId}`),
   ],
 );

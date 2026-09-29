@@ -11,6 +11,7 @@ import { type DueItem, listDue } from "./scheduled";
 import { type TxRow, listTransactions } from "./transactions";
 import { type InstallmentDue, installmentsBetween } from "./msi";
 import { type LoanDue, loanDueBetween } from "./loans";
+import { supportDueBetween } from "./support";
 
 export type CategoryBreakdown = {
   categoryId: string | null;
@@ -30,6 +31,8 @@ export type MonthReport = {
   installments: InstallmentDue[];
   /** Cuotas de préstamos pendientes del mes. */
   loanDue: LoanDue[];
+  /** Apoyos esperados (por recibir) y recurrentes por enviar del mes. */
+  supportDue: Awaited<ReturnType<typeof supportDueBetween>>;
   byCategory: CategoryBreakdown[];
   /** Categorías con límite aunque aún no tengan gasto (para mostrarlas). */
   budgetsByCategory: Record<string, Cents>;
@@ -53,12 +56,19 @@ export async function getMonthReport(
     loanDueBetween(db, actor, from, to),
   ]);
 
+  const supportDue = await supportDueBetween(db, actor, from, to, prefs.apoyosPendientesCuentan ?? true, today);
   const balance = computeMonthBalance({
     month,
     today,
     txs,
     // Las cuotas pendientes de préstamos son compromisos como cualquier pago fijo.
-    due: [...due, ...loanDue.map((l) => ({ kind: "pago" as const, amount: l.amount, status: "pendiente" as const }))],
+    due: [
+      ...due,
+      ...loanDue.map((l) => ({ kind: "pago" as const, amount: l.amount, status: "pendiente" as const })),
+      // Apoyos: por recibir = ingreso esperado; recurrentes por enviar = compromiso.
+      ...supportDue.expectedIncome.map((s) => ({ kind: "ingreso" as const, amount: s.amount, status: "pendiente" as const })),
+      ...supportDue.commitments.map((s) => ({ kind: "pago" as const, amount: s.amount, status: "pendiente" as const })),
+    ],
     installments,
     budget: budgets.general,
     warnPct: warnPct(prefs),
@@ -88,5 +98,5 @@ export async function getMonthReport(
     if (c) byCategory.push({ categoryId, name: c.name, icon: c.icon, total: 0, share: 0, limit });
   }
 
-  return { month, balance, txs, due, installments, loanDue, byCategory, budgetsByCategory: budgets.byCategory };
+  return { month, balance, txs, due, installments, loanDue, supportDue, byCategory, budgetsByCategory: budgets.byCategory };
 }

@@ -275,7 +275,7 @@ export async function payLoanInstallment(
     action: "editar",
     after: { pagada: next.number, capitalTxId, interestTxId },
   });
-  return next;
+  return { ...next, capitalTxId, interestTxId };
 }
 
 /** Deshacer el último pago o abono registrado en la app (en orden, para que la tabla cuadre). */
@@ -404,6 +404,7 @@ export async function prepayLoan(
     recordedAt: new Date(),
   });
   await rebuildPending(db, loan, input.mode);
+  const capitalTxId = tx.id;
   await audit(db, {
     householdId: actor.householdId,
     actorUserId: actor.id,
@@ -412,6 +413,7 @@ export async function prepayLoan(
     action: "editar",
     after: { abono: input.amount, modo: input.mode },
   });
+  return { capitalTxId };
 }
 
 export async function setLoanArchived(db: DbOrTx, actor: Actor, loanId: string, archived: boolean) {

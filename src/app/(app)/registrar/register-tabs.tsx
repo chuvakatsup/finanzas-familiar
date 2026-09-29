@@ -4,12 +4,13 @@ const TABS = [
   { href: "/registrar", key: "gasto", label: "Gasto", icon: "🛒" },
   { href: "/registrar/ingreso", key: "ingreso", label: "Ingreso", icon: "💰" },
   { href: "/registrar/transferencia", key: "transferencia", label: "Pasar dinero", icon: "🔁" },
+  { href: "/apoyos/enviar", key: "apoyo", label: "Apoyo", icon: "🤝" },
 ] as const;
 
 /** Selector grande de qué se va a registrar. */
 export function RegisterTabs({ current }: { current: (typeof TABS)[number]["key"] }) {
   return (
-    <nav aria-label="Qué quieres registrar" className="mb-4 grid grid-cols-3 gap-2">
+    <nav aria-label="Qué quieres registrar" className="mb-4 grid grid-cols-4 gap-1.5">
       {TABS.map((t) => {
         const active = t.key === current;
         return (

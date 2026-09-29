@@ -16,6 +16,8 @@ import { MonthNav } from "@/components/month-nav";
 import { MonthFigures, Semaforo } from "@/components/semaforo";
 import { TxList } from "@/components/tx-list";
 import { ButtonLink, Card } from "@/components/ui";
+import { SupportInbox } from "@/components/support-inbox";
+import { inboxData } from "./apoyos/data";
 
 export const metadata: Metadata = { title: "Inicio" };
 
@@ -30,11 +32,12 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const isCurrent = month === monthOf(today);
   const db = getDb();
 
-  const [report, prefs, upcomingData, accounts] = await Promise.all([
+  const [report, prefs, upcomingData, accounts, inbox] = await Promise.all([
     getMonthReport(db, user, month, today),
     getPrefs(db, user),
     isCurrent ? listAllUpcoming(db, user, 7, today) : Promise.resolve(null),
     isCurrent ? listAccounts(db, user) : Promise.resolve([]),
+    inboxData(db, user),
   ]);
   const b = report.balance;
   const accountOptions = accounts.map(({ id, name, kind }) => ({ id, name, kind }));
@@ -46,6 +49,9 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         <h1 className="text-3xl font-bold leading-tight">Hola, {user.name}</h1>
         <p className="text-lg text-muted">{capitalize(formatLongDate(today))}</p>
       </header>
+
+      {/* Lo primero que ve quien recibió un apoyo: "¿Ya lo recibiste?" */}
+      <SupportInbox items={inbox.items} options={inbox.options} />
 
       {showWelcome && (
         <Card className="mb-5 border-2 border-primary">
