@@ -57,27 +57,3 @@ export function Semaforo({ balance }: { balance: MonthBalance }) {
     </section>
   );
 }
-
-/** Las 3 cifras grandes debajo del semáforo. */
-export function MonthFigures({ balance }: { balance: MonthBalance }) {
-  const over = balance.result < 0;
-  const amount = "tabular shrink-0 whitespace-nowrap text-2xl";
-  return (
-    <dl className="grid grid-cols-1 gap-2">
-      <div className="flex items-baseline justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
-        <dt className="text-lg">Ingresos del mes</dt>
-        <dd className={`${amount} font-bold text-ok`}>{formatMoney(balance.income.total)}</dd>
-      </div>
-      <div className="flex items-baseline justify-between gap-3 rounded-2xl border border-border bg-surface p-4">
-        <dt className="text-lg">Gastos y compromisos</dt>
-        <dd className={`${amount} font-bold text-danger`}>−{formatMoney(balance.outgoings)}</dd>
-      </div>
-      <div className="flex items-baseline justify-between gap-3 rounded-2xl border-2 border-text bg-surface p-4">
-        <dt className="text-lg font-semibold">{over ? "Te pasas" : "Te queda"}</dt>
-        <dd className={`${amount} font-extrabold ${over ? "text-danger" : "text-ok"}`}>
-          {formatMoney(Math.abs(balance.result))}
-        </dd>
-      </div>
-    </dl>
-  );
-}

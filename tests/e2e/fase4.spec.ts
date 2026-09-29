@@ -11,18 +11,21 @@ async function loginAs(page: Page, user: { email: string; password: string }) {
 
 test.describe.configure({ mode: "serial" });
 
-test("semáforo en Inicio con las 3 cifras y promedio diario", async ({ page }) => {
+test("semáforo en Inicio con una sola cifra y promedio diario; el desglose en 'cuentas del mes'", async ({ page }) => {
   await loginAs(page, E2E_USERS.mama);
   const semaforo = page.getByRole("region", { name: /^Semáforo:/ });
   await expect(semaforo).toBeVisible();
-  await expect(page.getByText("Ingresos del mes")).toBeVisible();
-  await expect(page.getByText("Gastos y compromisos")).toBeVisible();
-  await expect(page.getByText(/^Te (queda|pasas)$/)).toBeVisible();
   await expect(page.getByText(/Puedes gastar|Ya no hay margen/)).toBeVisible();
+  // Inicio no repite la cifra: el desglose vive en "Las cuentas del mes".
+  await expect(page.getByText("Ingresos del mes")).toHaveCount(0);
+  const cifra = (await semaforo.locator("p.tabular").textContent())?.trim();
 
   // El detalle cuadra con la cifra de inicio.
   await page.getByRole("link", { name: /Ver las cuentas del mes/ }).click();
   await expect(page.getByRole("heading", { name: "Las cuentas del mes" })).toBeVisible();
+  await expect(page.getByText("Total de ingresos")).toBeVisible();
+  await expect(page.getByText("Total de gastos y compromisos")).toBeVisible();
+  if (cifra) await expect(page.getByText(/^Te (queda|pasas por) /)).toContainText(cifra);
   await expect(page.getByText("Pagar la tarjeta de crédito no aparece aquí")).toBeVisible();
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -108,5 +111,6 @@ test("asistente de primer uso: persona nueva sin datos", async ({ page, browser 
   await g.waitForURL("/");
   await expect(g.getByRole("region", { name: /^Semáforo:/ })).toBeVisible();
   await expect(g.getByRole("link", { name: "Empezar" })).toHaveCount(0);
-  await expect(g.getByText("Ingresos del mes").locator("..")).toContainText("$8,000.00");
+  await g.getByRole("link", { name: /Ver las cuentas del mes/ }).click();
+  await expect(g.getByText("Total de ingresos").locator("..")).toContainText("$8,000.00");
 });

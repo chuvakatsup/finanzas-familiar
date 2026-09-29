@@ -81,7 +81,7 @@ export function TransferForm({
         {!undone && (
           <Button
             type="button"
-            variant="danger"
+            variant="secondary"
             disabled={undoing}
             onClick={() =>
               startUndo(async () => {

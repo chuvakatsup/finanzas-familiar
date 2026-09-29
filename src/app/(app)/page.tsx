@@ -13,7 +13,7 @@ import { monthOf } from "@/domain/months";
 import { historyFiltersSchema } from "@/lib/schemas/finance";
 import { DueList } from "@/components/due-list";
 import { MonthNav } from "@/components/month-nav";
-import { MonthFigures, Semaforo } from "@/components/semaforo";
+import { Semaforo } from "@/components/semaforo";
 import { TxList } from "@/components/tx-list";
 import { ButtonLink, Card } from "@/components/ui";
 import { SupportInbox } from "@/components/support-inbox";
@@ -22,6 +22,7 @@ import { inboxData } from "./apoyos/data";
 export const metadata: Metadata = { title: "Inicio" };
 
 const HOME_DUE_LIMIT = 4;
+const HOME_TX_LIMIT = 3;
 
 export default async function HomePage({ searchParams }: PageProps<"/">) {
   const user = await requireUser();
@@ -70,63 +71,50 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
 
       <MonthNav month={month} hrefFor={(m) => (m === monthOf(today) ? "/" : `/?mes=${m}`)} />
 
-      <div className="mb-4 flex flex-col gap-3">
+      {/* Una sola cifra principal (el semáforo) y, debajo, cuánto se puede gastar al día. */}
+      <div className="mb-5 flex flex-col gap-3">
         <Semaforo balance={b} />
-        {b.status !== "sin-datos" && <MonthFigures balance={b} />}
-      </div>
-
-      {isCurrent && b.status !== "sin-datos" && b.dailyAllowance != null && (
-        <Card className="mb-4">
-          <p className="text-lg">
-            Para lo que resta del mes ({b.daysLeft} {b.daysLeft === 1 ? "día" : "días"}) tienes{" "}
-            <strong className="tabular">{formatMoney(Math.max(0, b.available))}</strong>.
-          </p>
-          <p className="mt-2 text-xl font-semibold">
+        {isCurrent && b.status !== "sin-datos" && b.dailyAllowance != null && (
+          <Card>
             {b.dailyAllowance > 0 ? (
               <>
-                <span aria-hidden="true">🗓️ </span>Puedes gastar{" "}
-                <span className="tabular text-2xl text-ok">{formatMoney(b.dailyAllowance)}</span> al día para
-                llegar bien.
+                <p className="text-xl font-semibold">
+                  <span aria-hidden="true">🗓️ </span>Puedes gastar{" "}
+                  <span className="tabular text-2xl text-ok">{formatMoney(b.dailyAllowance)}</span> al día
+                </p>
+                <p className="mt-1 text-lg text-muted">
+                  en {b.daysLeft === 1 ? "el día que falta" : `los ${b.daysLeft} días que faltan`} del mes.
+                </p>
               </>
             ) : (
-              <span className="text-danger">
+              <p className="text-xl font-semibold text-danger">
                 <span aria-hidden="true">⛔ </span>Ya no hay margen para gastos extra este mes.
-              </span>
+              </p>
             )}
-          </p>
-          {b.budget != null && (
-            <p className="mt-2 text-base text-muted">
-              De tu presupuesto de {formatMoney(b.budget)} te quedan {formatMoney(b.budgetLeft ?? 0)}.
-            </p>
-          )}
-        </Card>
+            {b.budget != null && (
+              <p className="mt-2 text-base text-muted">
+                De tu presupuesto de {formatMoney(b.budget)} te quedan {formatMoney(b.budgetLeft ?? 0)}.
+              </p>
+            )}
+          </Card>
+        )}
+      </div>
+
+      {/* Lo urgente primero: lo que ya venció y falta confirmar. */}
+      {upcomingData && (
+        <DueList title="⚠️ Por confirmar" items={upcomingData.overdue} today={today} accounts={accountOptions} />
       )}
 
-      <div className="mb-6 flex flex-col gap-3">
-        {isCurrent && (
+      {isCurrent && (
+        <div className="mb-6">
           <ButtonLink href="/registrar">
             <span aria-hidden="true">➕</span> Registrar gasto
           </ButtonLink>
-        )}
-        <div className="grid grid-cols-2 gap-3">
-          <Link
-            href={`/mes?mes=${month}`}
-            className="flex min-h-16 items-center justify-center rounded-2xl border-2 border-border bg-surface p-2 text-center text-base font-semibold"
-          >
-            <span aria-hidden="true">🧮&nbsp;</span>Ver las cuentas del mes
-          </Link>
-          <Link
-            href={`/gastos?mes=${month}`}
-            className="flex min-h-16 items-center justify-center rounded-2xl border-2 border-border bg-surface p-2 text-center text-base font-semibold"
-          >
-            <span aria-hidden="true">📊&nbsp;</span>¿A dónde se va mi dinero?
-          </Link>
         </div>
-      </div>
+      )}
 
       {upcomingData && (
         <>
-          <DueList title="⚠️ Por confirmar" items={upcomingData.overdue} today={today} accounts={accountOptions} />
           <DueList
             title="📅 Próximos 7 días"
             items={upcomingData.upcoming.slice(0, HOME_DUE_LIMIT)}
@@ -144,8 +132,23 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
         </>
       )}
 
+      <div className="mb-6 grid grid-cols-2 gap-3">
+        <Link
+          href={`/mes?mes=${month}`}
+          className="flex min-h-16 items-center justify-center rounded-2xl border-2 border-border bg-surface p-2 text-center text-base font-semibold"
+        >
+          <span aria-hidden="true">🧮&nbsp;</span>Ver las cuentas del mes
+        </Link>
+        <Link
+          href={`/gastos?mes=${month}`}
+          className="flex min-h-16 items-center justify-center rounded-2xl border-2 border-border bg-surface p-2 text-center text-base font-semibold"
+        >
+          <span aria-hidden="true">📊&nbsp;</span>¿A dónde se va mi dinero?
+        </Link>
+      </div>
+
       <h2 className="mb-3 text-2xl font-bold">{isCurrent ? "Lo último" : "Movimientos del mes"}</h2>
-      <TxList rows={report.txs.slice(0, 5)} back={isCurrent ? "/" : `/?mes=${month}`} />
+      <TxList rows={report.txs.slice(0, HOME_TX_LIMIT)} back={isCurrent ? "/" : `/?mes=${month}`} />
       {report.txs.length > 0 && (
         <div className="mt-4">
           <ButtonLink href={`/movimientos?mes=${month}`} variant="secondary">

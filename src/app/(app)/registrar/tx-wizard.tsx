@@ -120,7 +120,7 @@ export function TxWizard({
         {!undone && (
           <Button
             type="button"
-            variant="danger"
+            variant="secondary"
             disabled={undoing}
             onClick={() =>
               startUndo(async () => {
