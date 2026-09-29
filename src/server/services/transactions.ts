@@ -1,7 +1,7 @@
 import { and, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, or } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { DbOrTx } from "@/server/db";
-import { accounts, categories, scheduledOccurrences, transactions } from "@/server/db/schema";
+import { accounts, categories, scheduledOccurrences, sharedDebts, transactions } from "@/server/db/schema";
 import { audit } from "@/server/audit";
 import { type Actor, AuthzError } from "@/server/authz";
 import { assertUuid } from "@/server/ids";
@@ -165,6 +165,7 @@ export async function updateTransaction(
       throw new AuthzError("Un ingreso no puede entrar a una tarjeta de crédito.");
     }
     await getOwnedCategory(db, actor, input.categoryId, before.kind);
+    if (before.kind === "gasto") await guardSharedEdit(db, before, input);
     patch = {
       amount: input.amount,
       date: input.date,
@@ -198,10 +199,26 @@ export async function updateTransaction(
   return after;
 }
 
-/** Movimientos que pertenecen a un préstamo o compra a meses: se cambian desde ahí, no sueltos. */
+/**
+ * Gasto compartido: el monto no se cambia (las partes se calcularon con él); la fecha sí, y las
+ * partes la siguen (es el mes en que cuentan para quien debe).
+ */
+async function guardSharedEdit(db: DbOrTx, before: Tx, input: CategorizedInput) {
+  const [shared] = await db.select({ id: sharedDebts.id }).from(sharedDebts).where(eq(sharedDebts.sourceTxId, before.id)).limit(1);
+  if (!shared) return;
+  if (input.amount !== before.amount) {
+    throw new AuthzError("Este gasto es compartido. Para cambiar el monto, primero quita el reparto.");
+  }
+  if (input.date !== before.date) {
+    await db.update(sharedDebts).set({ date: input.date, updatedAt: new Date() }).where(eq(sharedDebts.sourceTxId, before.id));
+  }
+}
+
+/** Movimientos que pertenecen a un préstamo, compra a meses, apoyo o gasto compartido: se cambian desde ahí. */
 function assertNotOwnedBySource(tx: Tx, opts: { fromSource?: boolean }) {
-  if (!opts.fromSource && (tx.origin === "prestamo" || tx.origin === "msi" || tx.origin === "apoyo")) {
-    throw new AuthzError("Este movimiento es parte de un préstamo, compra a meses o apoyo. Cámbialo desde ahí.");
+  const owned = ["prestamo", "msi", "apoyo", "compartido"].includes(tx.origin);
+  if (!opts.fromSource && owned) {
+    throw new AuthzError("Este movimiento es parte de un préstamo, compra a meses, apoyo o gasto compartido. Cámbialo desde ahí.");
   }
 }
 
@@ -210,6 +227,14 @@ export async function deleteTransaction(db: DbOrTx, actor: Actor, id: string, op
   const before = await getOwnedTx(db, actor, id);
   assertNotOwnedBySource(before, opts);
   if (before.deletedAt) return before;
+  // Borrar un gasto compartido quita las partes para todos (y "Deshacer" las regresa),
+  // salvo que alguien ya haya pagado la suya.
+  const [paid] = await db
+    .select({ id: sharedDebts.id })
+    .from(sharedDebts)
+    .where(and(eq(sharedDebts.sourceTxId, before.id), inArray(sharedDebts.status, ["pagado", "recibido"])))
+    .limit(1);
+  if (paid) throw new AuthzError("Alguien ya te pagó su parte de este gasto. Primero deshaz ese pago.");
   const [after] = await db
     .update(transactions)
     .set({ deletedAt: new Date() })

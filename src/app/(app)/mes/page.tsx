@@ -73,7 +73,16 @@ export default async function MonthPage({ searchParams }: PageProps<"/mes">) {
       </Block>
 
       <Block title="🧾 Lo que sale">
-        <Row label="Gastos del día a día" amount={b.spent.variable} sign="−" hint="Súper, comida, transporte…" />
+        <Row
+          label="Gastos del día a día"
+          amount={b.spent.variable}
+          sign="−"
+          hint={
+            report.shared.sharedOutTotal > 0
+              ? `Súper, comida, transporte… (sin los ${formatMoney(report.shared.sharedOutTotal)} que te deben de gastos compartidos)`
+              : "Súper, comida, transporte…"
+          }
+        />
         <Row label="Pagos fijos ya hechos" amount={b.spent.fixed} sign="−" />
         {b.spent.installments > 0 && <Row label="Mensualidades de compras a meses" amount={b.spent.installments} sign="−" />}
         {b.spent.debts > 0 && <Row label="Pagos a préstamos (capital)" amount={b.spent.debts} sign="−" hint="Los intereses están en pagos fijos" />}
@@ -107,6 +116,15 @@ export default async function MonthPage({ searchParams }: PageProps<"/mes">) {
               sign="−"
             />
           ))}
+        {report.shared.owed.map((o, i) => (
+          <Row
+            key={`sh${i}`}
+            label={`Tu parte con ${o.to}: ${o.concept}`}
+            hint={`${capitalize(formatDay(o.date))} · gasto compartido`}
+            amount={o.amount}
+            sign="−"
+          />
+        ))}
         {report.supportDue.commitments.map((s, i) => (
           <Row key={`sc${i}`} label={`Apoyo automático a ${s.to}`} hint={capitalize(formatDay(s.date))} amount={s.amount} sign="−" />
         ))}

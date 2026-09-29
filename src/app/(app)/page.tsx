@@ -18,6 +18,9 @@ import { TxList } from "@/components/tx-list";
 import { ButtonLink, Card } from "@/components/ui";
 import { SupportInbox } from "@/components/support-inbox";
 import { inboxData } from "./apoyos/data";
+import { sharedAccounts, toItem } from "./compartidos/data";
+import { sharedInbox } from "@/server/services/shared";
+import { SharedInbox } from "@/components/shared-inbox";
 
 export const metadata: Metadata = { title: "Inicio" };
 
@@ -33,12 +36,14 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
   const isCurrent = month === monthOf(today);
   const db = getDb();
 
-  const [report, prefs, upcomingData, accounts, inbox] = await Promise.all([
+  const [report, prefs, upcomingData, accounts, inbox, shared, sharedAcc] = await Promise.all([
     getMonthReport(db, user, month, today),
     getPrefs(db, user),
     isCurrent ? listAllUpcoming(db, user, 7, today) : Promise.resolve(null),
     isCurrent ? listAccounts(db, user) : Promise.resolve([]),
     inboxData(db, user),
+    sharedInbox(db, user, today),
+    sharedAccounts(db, user),
   ]);
   const b = report.balance;
   const accountOptions = accounts.map(({ id, name, kind }) => ({ id, name, kind }));
@@ -53,6 +58,8 @@ export default async function HomePage({ searchParams }: PageProps<"/">) {
 
       {/* Lo primero que ve quien recibió un apoyo: "¿Ya lo recibiste?" */}
       <SupportInbox items={inbox.items} options={inbox.options} />
+      {/* Gastos compartidos: "te toca pagar" / "¿te llegó?" / "no es mío". */}
+      <SharedInbox items={shared.map(toItem)} accounts={sharedAcc} />
 
       {showWelcome && (
         <Card className="mb-5 border-2 border-primary">

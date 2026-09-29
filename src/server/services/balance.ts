@@ -12,6 +12,8 @@ import { type TxRow, listTransactions } from "./transactions";
 import { type InstallmentDue, installmentsBetween } from "./msi";
 import { type LoanDue, loanDueBetween } from "./loans";
 import { supportDueBetween } from "./support";
+import { sharedForMonth } from "./shared";
+import { ownShareTxs } from "@/domain/shared";
 
 export type CategoryBreakdown = {
   categoryId: string | null;
@@ -33,6 +35,8 @@ export type MonthReport = {
   loanDue: LoanDue[];
   /** Apoyos esperados (por recibir) y recurrentes por enviar del mes. */
   supportDue: Awaited<ReturnType<typeof supportDueBetween>>;
+  /** Gastos compartidos: lo que otros me deben de mis gastos del mes y mis partes pendientes. */
+  shared: { sharedOutTotal: Cents; owed: Awaited<ReturnType<typeof sharedForMonth>>["owed"] };
   byCategory: CategoryBreakdown[];
   /** Categorías con límite aunque aún no tengan gasto (para mostrarlas). */
   budgetsByCategory: Record<string, Cents>;
@@ -56,11 +60,16 @@ export async function getMonthReport(
     loanDueBetween(db, actor, from, to),
   ]);
 
-  const supportDue = await supportDueBetween(db, actor, from, to, prefs.apoyosPendientesCuentan ?? true, today);
+  const [supportDue, shared] = await Promise.all([
+    supportDueBetween(db, actor, from, to, prefs.apoyosPendientesCuentan ?? true, today),
+    sharedForMonth(db, actor, from, to),
+  ]);
+  // De mis gastos compartidos solo me cuenta mi parte (el resto me lo deben).
+  const ownTxs = ownShareTxs(txs, shared.sharedOut);
   const balance = computeMonthBalance({
     month,
     today,
-    txs,
+    txs: ownTxs,
     // Las cuotas pendientes de préstamos son compromisos como cualquier pago fijo.
     due: [
       ...due,
@@ -68,6 +77,8 @@ export async function getMonthReport(
       // Apoyos: por recibir = ingreso esperado; recurrentes por enviar = compromiso.
       ...supportDue.expectedIncome.map((s) => ({ kind: "ingreso" as const, amount: s.amount, status: "pendiente" as const })),
       ...supportDue.commitments.map((s) => ({ kind: "pago" as const, amount: s.amount, status: "pendiente" as const })),
+      // Mi parte de gastos que otros pagaron por mí: compromiso hasta que diga "Ya te pagué".
+      ...shared.owed.map((o) => ({ kind: "pago" as const, amount: o.amount, status: "pendiente" as const })),
     ],
     installments,
     budget: budgets.general,
@@ -77,7 +88,7 @@ export async function getMonthReport(
   const catById = new Map(cats.map((c) => [c.id, c]));
   // Las mensualidades de compras a meses cuentan en la categoría de la compra (la compra en sí no).
   const spent = spendingByCategory([
-    ...txs,
+    ...ownTxs,
     ...installments
       .filter((i) => i.dueDate <= today)
       .map((i) => ({ kind: "gasto" as const, amount: i.amount, origin: "msi" as const, categoryId: i.categoryId })),
@@ -98,5 +109,17 @@ export async function getMonthReport(
     if (c) byCategory.push({ categoryId, name: c.name, icon: c.icon, total: 0, share: 0, limit });
   }
 
-  return { month, balance, txs, due, installments, loanDue, supportDue, byCategory, budgetsByCategory: budgets.byCategory };
+  const sharedOutTotal = [...shared.sharedOut.values()].reduce((a, b) => a + b, 0);
+  return {
+    month,
+    balance,
+    txs,
+    due,
+    installments,
+    loanDue,
+    supportDue,
+    shared: { sharedOutTotal, owed: shared.owed },
+    byCategory,
+    budgetsByCategory: budgets.byCategory,
+  };
 }

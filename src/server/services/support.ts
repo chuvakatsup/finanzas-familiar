@@ -39,7 +39,7 @@ async function familyMember(db: DbOrTx, actor: Actor, userId: string) {
   return u;
 }
 
-async function ownMoneyAccount(db: DbOrTx, actor: Actor, accountId: string) {
+export async function ownMoneyAccount(db: DbOrTx, actor: Actor, accountId: string) {
   assertUuid(accountId, "Elige la cuenta.");
   const [acc] = await db
     .select()
