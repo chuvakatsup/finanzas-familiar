@@ -6,9 +6,12 @@ import { AuthzError } from "@/server/authz";
 import { listAccounts } from "@/server/services/accounts";
 import { listCategories } from "@/server/services/categories";
 import { getTransaction } from "@/server/services/transactions";
+import { sharedForTx } from "@/server/services/shared";
+import { unshareExpenseAction } from "@/server/actions/shared";
+import { formatRate } from "@/domain/amortization";
 import { deleteTransactionAction, restoreTransactionAction } from "@/server/actions/finance";
 import { capitalize } from "@/domain/dates";
-import { centsToInput } from "@/domain/money";
+import { centsToInput, formatMoney } from "@/domain/money";
 import { formatDay } from "@/domain/months";
 import { TX_KIND_INFO } from "@/domain/transactions";
 import { ConfirmButton } from "@/components/confirm-button";
@@ -47,6 +50,17 @@ export default async function TxPage({ params, searchParams }: PageProps<"/movim
     (a) => !a.archivedAt || a.id === tx.fromAccountId || a.id === tx.toAccountId,
   );
   const categories = allCategories.filter((c) => !c.archived || c.id === tx.categoryId);
+  // Gastos propios capturados a mano: se pueden repartir con la familia.
+  const shareable = tx.kind === "gasto" && tx.origin === "manual" && !tx.deletedAt;
+  const parts = shareable ? await sharedForTx(db, actor, tx.id) : [];
+  const someonePaid = parts.some((p) => p.status === "pagado" || p.status === "recibido");
+  const ownPart = tx.amount - parts.filter((p) => p.status !== "rechazado").reduce((a, p) => a + p.amount, 0);
+  const STATUS = {
+    pendiente: "⏳ Te lo debe",
+    pagado: "💬 Dice que ya te pagó",
+    recibido: "✅ Ya te pagó",
+    rechazado: "✖️ Dijo que no le toca",
+  } as const;
 
   return (
     <>
@@ -56,6 +70,9 @@ export default async function TxPage({ params, searchParams }: PageProps<"/movim
         </a>
       </p>
       {sp.restaurado && <Alert kind="ok">Listo, el movimiento se recuperó.</Alert>}
+      {sp.compartido && <Alert kind="ok">Listo, el gasto quedó compartido. Ya les avisamos.</Alert>}
+      {sp.sinReparto && <Alert kind="ok">Listo, el gasto ya no está compartido.</Alert>}
+      {typeof sp.error === "string" && <Alert>{sp.error}</Alert>}
 
       <Card className="my-4">
         <p className="text-lg text-muted">
@@ -77,6 +94,53 @@ export default async function TxPage({ params, searchParams }: PageProps<"/movim
           <p className="mt-2 text-base text-muted">Un pago de tarjeta no cuenta como gasto nuevo.</p>
         )}
       </Card>
+
+      {shareable && parts.length > 0 && (
+        <section aria-labelledby="sec-reparto" className="mb-5 rounded-2xl border-2 border-primary bg-surface p-4">
+          <h2 id="sec-reparto" className="text-xl font-bold">
+            <span aria-hidden="true">👥 </span>Gasto compartido
+          </h2>
+          <ul className="mt-2 flex flex-col divide-y divide-border">
+            {parts.map((p) => (
+              <li key={p.id} className="flex items-baseline justify-between gap-3 py-2">
+                <span>
+                  <span className="block text-lg font-semibold">
+                    {p.debtorName}
+                    {p.percentBp != null ? ` (${formatRate(p.percentBp)})` : ""}
+                  </span>
+                  <span className="block text-base text-muted">{STATUS[p.status]}</span>
+                </span>
+                <span className="tabular shrink-0 text-lg font-bold">{formatMoney(p.amount)}</span>
+              </li>
+            ))}
+            <li className="flex items-baseline justify-between gap-3 py-2">
+              <span className="text-lg font-semibold">Tu parte (lo que te cuenta este mes)</span>
+              <span className="tabular shrink-0 text-lg font-bold">{formatMoney(ownPart)}</span>
+            </li>
+          </ul>
+          {!someonePaid && (
+            <form action={unshareExpenseAction} className="mt-2">
+              <input type="hidden" name="txId" value={tx.id} />
+              <ConfirmButton
+                look="link"
+                title="¿Quitar el reparto?"
+                message={<p>El gasto volverá a contar completo para ti y ya no le aparecerá a nadie más.</p>}
+                confirmLabel="Sí, quitar"
+                variant="secondary"
+              >
+                Quitar el reparto
+              </ConfirmButton>
+            </form>
+          )}
+        </section>
+      )}
+      {shareable && parts.length === 0 && (
+        <div className="mb-5">
+          <ButtonLink href={`/movimientos/${tx.id}/compartir`} variant="secondary">
+            <span aria-hidden="true">👥</span> Compartir este gasto con mi familia
+          </ButtonLink>
+        </div>
+      )}
 
       {tx.deletedAt ? (
         <form action={restoreTransactionAction}>

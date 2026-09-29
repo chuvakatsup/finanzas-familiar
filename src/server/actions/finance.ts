@@ -29,8 +29,11 @@ import {
   categoryFormSchema,
   expenseSchema,
   incomeSchema,
+  shareSchema,
   transferSchema,
 } from "@/lib/schemas/finance";
+import { shareExpense } from "@/server/services/shared";
+import { notifySharedCreated } from "@/server/services/reminders";
 import { type FormState, fieldErrors } from "@/lib/form-state";
 import { field, friendlyError } from "./helpers";
 
@@ -61,8 +64,16 @@ export async function createExpenseAction(_prev: FormState, formData: FormData):
     note: field(formData, "note"),
   });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+  // Opcional: "Es compartido" (se guarda junto con el gasto; si el reparto falla, no se guarda nada).
+  const shared = shareSchema.safeParse(field(formData, "shared"));
+  if (!shared.success) return { fieldErrors: fieldErrors(shared.error) };
+  const split = shared.data;
   try {
-    const tx = await getDb().transaction((t) => createExpense(t, actor, parsed.data));
+    const { tx, debts } = await getDb().transaction(async (t) => {
+      const tx = await createExpense(t, actor, parsed.data);
+      return { tx, debts: split ? await shareExpense(t, actor, tx.id, split) : [] };
+    });
+    await notifySharedCreated(getDb(), debts).catch((e) => console.error("push compartido", e));
     refreshMoneyPages();
     return { data: { id: tx.id } };
   } catch (e) {

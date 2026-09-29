@@ -81,6 +81,14 @@ PWA familiar (Next.js 16) para responder "¿me alcanza el dinero este mes?". Usu
 - `(app)/loading.tsx` hace que las respuestas lleguen en partes: un `notFound()` responde 200 con la página "No encontramos…" (en pruebas, verificar contenido, no el código HTTP).
 - Checklist de prueba con la usuaria real: `docs/prueba-en-celular.md`.
 
+## Gastos compartidos (fase 9a: cargos sueltos)
+- `shared_debts`: una fila por persona que debe una parte de un gasto (`source_tx_id`) de otra (`owner_id`). Reparto por porcentaje (`percent_bp`) o monto; lo no repartido es del dueño. Lógica pura en `src/domain/shared.ts` (`computeShares`: con 100% exacto el residuo va en la última parte).
+- Estados: `pendiente` → (quien debe: "Ya te pagué") `pagado` → (dueño: "Sí, me llegó") `recibido`; `rechazado` = "Esto no es mío" (vuelve a contar para el dueño; `dismissedAt` = ya vio el aviso). Cada paso se puede deshacer en orden.
+- Balance sin doble conteo: el cargo completo queda en la cuenta del dueño (deuda real), pero `getMonthReport` le descuenta lo repartido (`ownShareTxs`, sin rechazados). Para quien debe, lo `pendiente` es compromiso del mes del cargo; al pagar se crea un `gasto` origin `compartido` (categoría "Gastos compartidos"). Al confirmar, el dueño recibe tx `reembolso` (NO es ingreso; puede entrar directo a la tarjeta y baja la deuda).
+- Privacidad: quien debe solo ve concepto, monto, % y nombre del dueño (`SharedView.sourceTxId` es null para él); nunca la cuenta/tarjeta.
+- Gasto de origen compartido: el monto no se edita (quitar reparto primero); la fecha sí y las partes la siguen. Borrarlo (suave) oculta las partes para todos; bloqueado si alguien ya pagó.
+- Pendiente: fase 9b (compras a meses y préstamos compartidos: cada mensualidad/cuota se reparte) y 9c (tarjeta completa con reparto por defecto).
+
 ## UI
 - Base 18px (`html { font-size: 112.5% }`, respeta el tamaño del sistema), botones ≥48px (usamos `min-h-14`), tokens de color en `globals.css` con modo oscuro. Nunca solo color: icono + texto.
 - Componentes base en `src/components/ui.tsx`. Sin estilos inline (la CSP los bloquea).

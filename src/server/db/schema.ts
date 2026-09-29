@@ -591,3 +591,62 @@ export const notificationLog = pgTable(
   },
   (t) => [uniqueIndex("notification_user_key_uq").on(t.userId, t.key)],
 );
+
+// ---------------------------------------------------------------------------
+// Fase 9: gastos compartidos
+// ---------------------------------------------------------------------------
+
+/**
+ * pendiente → (quien debe: "Ya te pagué") pagado → (dueño: "Sí, me llegó") recibido.
+ * rechazado = quien debe dijo "Esto no es mío" (vuelve a contar completo para el dueño).
+ */
+export const sharedStatus = pgEnum("shared_status", ["pendiente", "pagado", "recibido", "rechazado"]);
+
+/** La parte de un gasto que le toca a otra persona de la familia (una fila por persona). */
+export const sharedDebts = pgTable(
+  "shared_debts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id, { onDelete: "cascade" }),
+    // Quien pagó el cargo completo y a quien le deben.
+    ownerId: uuid("owner_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    debtorId: uuid("debtor_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    // Gasto del dueño que se reparte. Si se borra (suave), la parte deja de contar para todos.
+    sourceTxId: uuid("source_tx_id")
+      .notNull()
+      .references(() => transactions.id, { onDelete: "cascade" }),
+    amount: money("amount").notNull(),
+    // Solo si se repartió por porcentaje (50% = 5000), para mostrarlo.
+    percentBp: integer("percent_bp"),
+    // Fecha del cargo (el mes en que cuenta como compromiso para quien debe).
+    date: date("date", { mode: "string" }).notNull(),
+    // Qué fue (lo único del cargo que ve quien debe: nunca la cuenta ni la tarjeta del dueño).
+    concept: text("concept").notNull(),
+    status: sharedStatus("status").notNull().default("pendiente"),
+    // Gasto "Tu parte" en la cuenta de quien debe (al decir "Ya te pagué").
+    paidTxId: uuid("paid_tx_id").references(() => transactions.id, { onDelete: "set null" }),
+    paidAt: timestamp("paid_at", { withTimezone: true }),
+    // Reembolso en la cuenta (o tarjeta) del dueño (al confirmar que le llegó).
+    receivedTxId: uuid("received_tx_id").references(() => transactions.id, { onDelete: "set null" }),
+    receivedAt: timestamp("received_at", { withTimezone: true }),
+    rejectedAt: timestamp("rejected_at", { withTimezone: true }),
+    // El dueño ya vio el "Esto no es mío" (deja de avisarse).
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("shared_tx_debtor_uq").on(t.sourceTxId, t.debtorId),
+    index("shared_owner_idx").on(t.ownerId, t.status),
+    index("shared_debtor_idx").on(t.debtorId, t.status),
+    check("shared_amount_chk", sql`${t.amount} > 0`),
+    check("shared_people_chk", sql`${t.ownerId} <> ${t.debtorId}`),
+    check("shared_percent_chk", sql`${t.percentBp} is null or ${t.percentBp} between 1 and 10000`),
+  ],
+);

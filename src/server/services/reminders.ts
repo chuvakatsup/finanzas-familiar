@@ -77,3 +77,31 @@ export async function notifySupportSent(db: DbOrTx, support: { id: string; recip
   const [sender] = await db.select({ name: users.name }).from(users).where(eq(users.id, support.senderId)).limit(1);
   await notifyOnce(db, support.recipientId, `apoyo:${support.id}`, supportPayload(sender?.name ?? "Tu familia", support.amount));
 }
+
+/** Aviso inmediato a quien le asignaron una parte de un gasto compartido. */
+export async function notifySharedCreated(
+  db: DbOrTx,
+  debts: readonly { id: string; ownerId: string; debtorId: string; amount: number; concept: string }[],
+) {
+  if (!debts.length) return;
+  const [owner] = await db.select({ name: users.name }).from(users).where(eq(users.id, debts[0].ownerId)).limit(1);
+  for (const d of debts) {
+    await notifyOnce(db, d.debtorId, `compartido:${d.id}`, {
+      title: "Compartieron un gasto contigo 👥",
+      body: `${owner?.name ?? "Tu familia"} pagó ${d.concept}. Te tocan ${formatMoney(d.amount)}.`,
+      url: "/",
+      tag: "compartido",
+    });
+  }
+}
+
+/** Aviso inmediato al dueño cuando le dicen "Ya te pagué". */
+export async function notifySharedPaid(db: DbOrTx, debt: { id: string; ownerId: string; debtorId: string; amount: number; concept: string }) {
+  const [debtor] = await db.select({ name: users.name }).from(users).where(eq(users.id, debt.debtorId)).limit(1);
+  await notifyOnce(db, debt.ownerId, `compartido-pagado:${debt.id}`, {
+    title: "Te pagaron una parte 👥",
+    body: `${debtor?.name ?? "Tu familia"} dice que ya te pagó ${formatMoney(debt.amount)} de ${debt.concept}. ¿Te llegó?`,
+    url: "/",
+    tag: "compartido",
+  });
+}

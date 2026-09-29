@@ -26,6 +26,7 @@ const PAGES = [
   "/prestamos/nuevo",
   "/msi/nueva",
   "/apoyos",
+  "/compartidos",
   "/mas",
   "/mas/ajustes",
   "/mas/presupuesto",

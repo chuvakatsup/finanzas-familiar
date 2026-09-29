@@ -4,6 +4,7 @@ import { CATEGORY_KINDS } from "@/domain/categories";
 import { parseMoney } from "@/domain/money";
 import { FREQUENCIES } from "@/domain/recurrence";
 import { PERIODICITIES, parseRatePct } from "@/domain/amortization";
+import { SPLIT_MODES, parsePartValue } from "@/domain/shared";
 
 /** Tope de seguridad: 100 millones de pesos. */
 const MAX_CENTS = 10_000_000_000;
@@ -447,3 +448,49 @@ export const receiveSupportSchema = z
         : { kind: kind as "cuota" | "abono", loanId: ok.data };
     return { accountId: d.accountId, apply };
   });
+
+// ---------------- Gastos compartidos ----------------
+
+/**
+ * Reparto que manda el formulario como JSON en el campo "shared":
+ * { mode: "porcentaje" | "monto", parts: [{ userId, value: "50" | "1500" }] }. Vacío = no se comparte.
+ */
+export const shareSchema = z
+  .string()
+  .trim()
+  .transform((raw, ctx) => {
+    if (raw === "") return null;
+    let data: unknown;
+    try {
+      data = JSON.parse(raw);
+    } catch {
+      ctx.addIssue({ code: "custom", message: "Revisa con quién compartes el gasto." });
+      return z.NEVER;
+    }
+    const parsed = z
+      .object({
+        mode: z.enum(SPLIT_MODES),
+        parts: z.array(z.object({ userId: z.uuid(), value: z.string().max(20) })).min(1, "Elige con quién compartes el gasto.").max(20),
+      })
+      .safeParse(data);
+    if (!parsed.success) {
+      ctx.addIssue({ code: "custom", message: parsed.error.issues[0]?.message ?? "Revisa con quién compartes el gasto." });
+      return z.NEVER;
+    }
+    const parts = [];
+    for (const p of parsed.data.parts) {
+      const value = parsePartValue(parsed.data.mode, p.value);
+      if (value == null) {
+        ctx.addIssue({
+          code: "custom",
+          message: parsed.data.mode === "porcentaje" ? "Escribe el porcentaje de cada persona (del 1 al 100)." : "Escribe cuánto le toca a cada persona.",
+        });
+        return z.NEVER;
+      }
+      parts.push({ userId: p.userId, value });
+    }
+    return { mode: parsed.data.mode, parts };
+  });
+
+export const sharedPaySchema = z.object({ fromAccountId: id });
+export const sharedReceiveSchema = z.object({ accountId: id });

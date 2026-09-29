@@ -10,10 +10,11 @@ export const TX_KINDS = [
   "apoyo_recibido",
   "ajuste",
   "compra_msi",
+  "reembolso",
 ] as const;
 export type TxKind = (typeof TX_KINDS)[number];
 
-export const TX_ORIGINS = ["manual", "recurrente", "msi", "prestamo", "apoyo"] as const;
+export const TX_ORIGINS = ["manual", "recurrente", "msi", "prestamo", "apoyo", "compartido"] as const;
 export type TxOrigin = (typeof TX_ORIGINS)[number];
 
 export const TX_KIND_INFO: Record<TxKind, { label: string; icon: string }> = {
@@ -26,6 +27,8 @@ export const TX_KIND_INFO: Record<TxKind, { label: string; icon: string }> = {
   apoyo_recibido: { label: "Apoyo recibido", icon: "🎁" },
   ajuste: { label: "Corrección de saldo", icon: "✏️" },
   compra_msi: { label: "Compra a meses", icon: "🗓️" },
+  // Un familiar te pagó su parte de un gasto compartido: regresa dinero, no es ingreso.
+  reembolso: { label: "Te pagaron su parte", icon: "👥" },
 };
 
 /**
@@ -51,6 +54,7 @@ export function txDirection(kind: TxKind): "sale" | "entra" | "mueve" {
       return "sale";
     case "ingreso":
     case "apoyo_recibido":
+    case "reembolso":
       return "entra";
     default:
       return "mueve";

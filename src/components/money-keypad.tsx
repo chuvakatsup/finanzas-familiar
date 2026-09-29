@@ -1,6 +1,7 @@
 "use client";
 
 import { formatMoney, parseMoney } from "@/domain/money";
+import { BackspaceIcon } from "./icons";
 
 const KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "0", "⌫"] as const;
 
@@ -48,9 +49,9 @@ export function MoneyKeypad({
             type="button"
             onClick={() => onChange(applyKey(value, k))}
             aria-label={k === "⌫" ? "Borrar último número" : k === "." ? "Punto decimal" : k}
-            className="tabular min-h-14 rounded-2xl border-2 border-border bg-surface text-3xl font-semibold active:bg-surface-2"
+            className="tabular flex min-h-14 items-center justify-center rounded-2xl border-2 border-border bg-surface text-3xl font-semibold active:bg-surface-2"
           >
-            {k}
+            {k === "⌫" ? <BackspaceIcon className="size-9" /> : k}
           </button>
         ))}
       </div>

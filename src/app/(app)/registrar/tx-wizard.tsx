@@ -10,6 +10,7 @@ import { MoneyKeypad } from "@/components/money-keypad";
 import { Choice } from "@/components/choice";
 import { Alert, Button, ButtonLink } from "@/components/ui";
 import { StickyAction } from "@/components/sticky-action";
+import { type Member, SplitEditor, emptySplit, splitPayload, splitPreview } from "@/components/split-editor";
 
 export type AccountOption = { id: string; name: string; kind: AccountKind; balance: number };
 export type CategoryOption = { id: string; name: string; icon: string };
@@ -47,12 +48,15 @@ export function TxWizard({
   accounts,
   defaultAccountId,
   today,
+  members = [],
 }: {
   kind: "gasto" | "ingreso";
   categories: CategoryOption[];
   accounts: AccountOption[];
   defaultAccountId: string | null;
   today: string;
+  /** Otras personas de la familia (para "Es compartido"; solo en gastos). */
+  members?: Member[];
 }) {
   const t = TEXT[kind];
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -63,6 +67,8 @@ export function TxWizard({
   const [editDate, setEditDate] = useState(false);
   const [note, setNote] = useState("");
   const [showNote, setShowNote] = useState(false);
+  const [sharing, setSharing] = useState(false);
+  const [split, setSplit] = useState(emptySplit);
   const [state, formAction, pending] = useActionState(
     kind === "gasto" ? createExpenseAction : createIncomeAction,
     initialFormState,
@@ -77,6 +83,7 @@ export function TxWizard({
   const category = categories.find((c) => c.id === categoryId);
   const account = accounts.find((a) => a.id === accountId);
   const savedId = state.data?.id;
+  const shared = sharing ? splitPreview(cents, split) : null;
 
   function reset() {
     setStep(1);
@@ -86,6 +93,8 @@ export function TxWizard({
     setShowNote(false);
     setEditDate(false);
     setDate(today);
+    setSharing(false);
+    setSplit(emptySplit);
     setUndone(false);
     setUndoError(null);
     setSavedKey(savedId ?? null);
@@ -108,6 +117,13 @@ export function TxWizard({
               {kind === "gasto" ? ", pagado con " : ", entró a "}
               {account?.name}.
             </p>
+            {shared?.ok && (
+              <p className="mt-2 text-lg text-text">
+                <span aria-hidden="true">👥 </span>
+                {shared.shares.map((s) => `${members.find((m) => m.id === s.userId)?.name} te debe ${formatMoney(s.amount)}`).join(" · ")}.
+                Ya le avisamos.
+              </p>
+            )}
           </div>
         )}
         {undoError && <Alert>{undoError}</Alert>}
@@ -120,7 +136,7 @@ export function TxWizard({
         {!undone && (
           <Button
             type="button"
-            variant="danger"
+            variant="secondary"
             disabled={undoing}
             onClick={() =>
               startUndo(async () => {
@@ -159,6 +175,7 @@ export function TxWizard({
       <input type="hidden" name="accountId" value={accountId} />
       <input type="hidden" name="date" value={date} />
       <input type="hidden" name="note" value={note} />
+      <input type="hidden" name="shared" value={sharing ? splitPayload(split) : ""} />
 
       {state.message && <Alert>{state.message}</Alert>}
       {state.fieldErrors && (
@@ -240,6 +257,20 @@ export function TxWizard({
               <span aria-hidden="true">🗓️&nbsp;</span>¿Fue a meses? Regístrala como compra a meses
             </a>
           )}
+          {kind === "gasto" && members.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                aria-expanded={sharing}
+                onClick={() => setSharing(!sharing)}
+                className="flex min-h-12 items-center text-left text-base font-semibold text-primary underline underline-offset-4"
+              >
+                <span aria-hidden="true">👥&nbsp;</span>
+                {sharing ? "Ya no es compartido" : "¿Es compartido con tu familia? Repártelo"}
+              </button>
+              {sharing && <SplitEditor members={members} total={cents} value={split} onChange={setSplit} />}
+            </div>
+          )}
           {/* Fecha y nota: compactas para que "Guardar" quede a la vista. */}
           <div className="flex flex-col gap-2">
             <div className="flex flex-wrap items-center gap-x-4">
@@ -292,7 +323,7 @@ export function TxWizard({
           </div>
 
           <StickyAction>
-            <Button type="submit" disabled={pending || !accountId}>
+            <Button type="submit" disabled={pending || !accountId || shared?.ok === false}>
               {pending ? "Guardando…" : t.save}
             </Button>
           </StickyAction>

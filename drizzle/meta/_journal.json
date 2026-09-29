@@ -64,6 +64,13 @@
       "when": 1790657271193,
       "tag": "0008_recordatorios",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790664220775,
+      "tag": "0009_compartidos",
+      "breakpoints": true
     }
   ]
 }

@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { CardIcon, HomeIcon, MenuIcon, PlusIcon } from "./icons";
 
 const items = [
-  { href: "/", label: "Inicio", icon: "🏠" },
-  { href: "/registrar", label: "Registrar", icon: "➕", primary: true },
-  { href: "/cuentas", label: "Mis cuentas", icon: "💳" },
-  { href: "/mas", label: "Más", icon: "☰" },
+  { href: "/", label: "Inicio", Icon: HomeIcon },
+  { href: "/registrar", label: "Registrar", Icon: PlusIcon, primary: true },
+  { href: "/cuentas", label: "Mis cuentas", Icon: CardIcon },
+  { href: "/mas", label: "Más", Icon: MenuIcon },
 ] as const;
 
 function isActive(pathname: string, href: string) {
@@ -37,15 +38,13 @@ export function BottomNav() {
               >
                 {/* Caja de icono de alto fijo para que todas las etiquetas queden alineadas. */}
                 <span aria-hidden="true" className="flex h-11 items-center justify-center">
-                  <span
-                    className={
-                      primary
-                        ? "flex size-11 items-center justify-center rounded-full bg-primary text-2xl text-on-primary"
-                        : "text-2xl leading-none"
-                    }
-                  >
-                    {item.icon}
-                  </span>
+                  {primary ? (
+                    <span className="flex size-11 items-center justify-center rounded-full bg-primary text-on-primary">
+                      <item.Icon className="size-7" strokeWidth={2.75} />
+                    </span>
+                  ) : (
+                    <item.Icon className="size-8" />
+                  )}
                 </span>
                 <span className={active ? "underline decoration-2 underline-offset-4" : undefined}>
                   {item.label}

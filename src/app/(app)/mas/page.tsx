@@ -17,6 +17,7 @@ const SECTIONS: { id: string; title: string; items: Item[] }[] = [
       { href: "/proximos", icon: "📅", label: "Próximos pagos", text: "Lo que toca pagar y recibir pronto" },
       { href: "/movimientos", icon: "📋", label: "Mis movimientos", text: "Todo lo que has registrado, por mes" },
       { href: "/apoyos", icon: "🤝", label: "Apoyos familiares", text: "Enviar y recibir ayuda de la familia" },
+      { href: "/compartidos", icon: "👥", label: "Gastos compartidos", text: "Lo que te deben y lo que debes de gastos repartidos" },
       { href: "/prestamos", icon: "📄", label: "Mis préstamos", text: "Cuánto debes y tu tabla de pagos" },
     ],
   },

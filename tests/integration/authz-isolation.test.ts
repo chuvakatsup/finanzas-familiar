@@ -137,3 +137,36 @@ describe("aislamiento de datos financieros entre personas", () => {
     ).resolves.toBeTruthy();
   });
 });
+
+// ---------------- Fase 9: gastos compartidos ----------------
+import * as shared from "@/server/services/shared";
+import { createExpense as createExpenseForShare } from "@/server/services/transactions";
+
+describe("aislamiento de gastos compartidos", () => {
+  it("otra familia no puede recibir partes, ni ver, pagar, confirmar o rechazar las de esta", async () => {
+    const a = await makeHousehold("A");
+    const b = await makeHousehold("B");
+    const none = { last4: null, creditLimit: null, statementDay: null, paymentDueDay: null };
+    const cardA = await createAccount(getDb(), a.admin, { ...none, kind: "credito", name: "Tarjeta A", balance: 0 });
+    const cashB = await createAccount(getDb(), b.admin, { ...none, kind: "efectivo", name: "Efectivo B", balance: 100_000 });
+    const [cat] = await listCategories(getDb(), a.admin, "gasto");
+    const tx = await createExpenseForShare(getDb(), a.admin, { amount: 10_000, categoryId: cat.id, accountId: cardA.id, date: "2026-09-01", note: null });
+
+    await expect(
+      shared.shareExpense(getDb(), a.admin, tx.id, { mode: "porcentaje", parts: [{ userId: b.member.id, value: 5000 }] }),
+    ).rejects.toBeInstanceOf(AuthzError);
+    // B tampoco puede repartir el gasto de A.
+    await expect(
+      shared.shareExpense(getDb(), b.admin, tx.id, { mode: "porcentaje", parts: [{ userId: b.member.id, value: 5000 }] }),
+    ).rejects.toBeInstanceOf(AuthzError);
+
+    const [debt] = await shared.shareExpense(getDb(), a.admin, tx.id, { mode: "porcentaje", parts: [{ userId: a.member.id, value: 5000 }] });
+    expect(await shared.listShared(getDb(), b.admin)).toEqual([]);
+    expect(await shared.sharedForTx(getDb(), b.admin, tx.id)).toEqual([]);
+    await expect(shared.markSharedPaid(getDb(), b.admin, debt.id, { fromAccountId: cashB.id })).rejects.toBeInstanceOf(AuthzError);
+    await expect(shared.confirmSharedReceived(getDb(), b.admin, debt.id, { accountId: cashB.id })).rejects.toBeInstanceOf(AuthzError);
+    await expect(shared.rejectShared(getDb(), b.admin, debt.id)).rejects.toBeInstanceOf(AuthzError);
+    await expect(shared.markSharedPaid(getDb(), b.admin, "no-es-un-id", { fromAccountId: cashB.id })).rejects.toBeInstanceOf(AuthzError);
+    expect((await shared.listShared(getDb(), a.member))[0].status).toBe("pendiente");
+  });
+});

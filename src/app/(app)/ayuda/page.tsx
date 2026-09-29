@@ -60,10 +60,22 @@ export default function HelpPage() {
             <strong>Sí, ya lo recibí</strong> y elige a qué cuenta llegó.
           </p>
         </Q>
+        <Q q="Pagué algo que es de varios, ¿cómo lo reparto?">
+          <p>
+            Al registrar el gasto, toca <strong>¿Es compartido con tu familia?</strong> y marca a quién le toca una parte,
+            en porcentaje o en pesos. A ti solo te cuenta tu parte. A cada quien le aparece en Inicio lo que le toca;
+            cuando te paguen, confirma a dónde te llegó (puede ser directo a tu tarjeta).
+          </p>
+        </Q>
+        <Q q="Me aparece un gasto compartido que no es mío">
+          <p>
+            Toca <strong>Esto no es mío</strong>. Deja de contar para ti y le avisamos a quien lo registró.
+          </p>
+        </Q>
         <Q q="¿Alguien más puede ver mi dinero?">
           <p>
-            No. Cada persona ve solo sus propias cuentas. Tu familia solo ve tu nombre y los apoyos que se envían entre
-            ustedes.
+            No. Cada persona ve solo sus propias cuentas. Tu familia solo ve tu nombre, los apoyos que se envían entre
+            ustedes y la parte que les toca de un gasto compartido (nunca tu tarjeta ni tus cuentas).
           </p>
         </Q>
         <Q q="La letra está muy chica">

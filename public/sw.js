@@ -1,6 +1,6 @@
 // Service worker mínimo: guarda recursos estáticos y muestra una pantalla clara sin internet.
 // No guarda datos financieros en caché (las páginas siempre se piden al servidor).
-const VERSION = "v2";
+const VERSION = "v3";
 const STATIC_CACHE = `static-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png"];
