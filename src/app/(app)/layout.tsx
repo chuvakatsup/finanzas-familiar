@@ -6,7 +6,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   await ensureAutoSynced();
   return (
     <>
-      <main className="mx-auto w-full max-w-xl flex-1 px-4 pb-32 pt-6">{children}</main>
+      <main id="contenido" tabIndex={-1} className="mx-auto w-full max-w-xl flex-1 px-4 pb-32 pt-6 outline-none">{children}</main>
       <BottomNav />
     </>
   );

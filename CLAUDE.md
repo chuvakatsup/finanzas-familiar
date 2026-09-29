@@ -72,6 +72,15 @@ PWA familiar (Next.js 16) para responder "¿me alcanza el dinero este mes?". Usu
 - Recurrentes: `support_schedules`; `syncSupportSchedules` los genera al abrir la app el emisor O el receptor; índice único (schedule, fecha) + candado evita duplicados. Futuros del mes = compromiso (emisor) / esperado (receptor).
 - Lo confirmado HOY sigue en la bandeja con "Deshacer".
 
+## Recordatorios y pulido (fase 8)
+- Web Push con VAPID (`services/push.ts`): opcional; sin llaves la app funciona igual. `notifyOnce(userId, key)` + `notification_log` evitan repetir avisos. Suscripciones que responden 404/410 se borran.
+- `services/reminders.ts`: aviso diario (vence hoy/mañana, vencidos, tarjeta ≤3 días) y aviso inmediato de apoyos (misma llave `apoyo:<id>`, nunca duplicado). Lo dispara el servicio `cron` (imagen de herramientas) con `POST /api/cron/recordatorios` + `CRON_SECRET`; Nginx bloquea `/api/cron/` desde fuera.
+- En pruebas el envío se sustituye con `setPushTransportForTests`.
+- `pnpm push:keys` genera VAPID + CRON_SECRET (también `node scripts/push-keys.mjs` dentro del contenedor).
+- Accesibilidad: `tests/e2e/accesibilidad.spec.ts` corre axe (WCAG 2.2 AA) en ~25 pantallas, claro y oscuro; no debe haber problemas serios/críticos. Agregar ahí cada pantalla nueva.
+- `(app)/loading.tsx` hace que las respuestas lleguen en partes: un `notFound()` responde 200 con la página "No encontramos…" (en pruebas, verificar contenido, no el código HTTP).
+- Checklist de prueba con la usuaria real: `docs/prueba-en-celular.md`.
+
 ## UI
 - Base 18px (`html { font-size: 112.5% }`, respeta el tamaño del sistema), botones ≥48px (usamos `min-h-14`), tokens de color en `globals.css` con modo oscuro. Nunca solo color: icono + texto.
 - Componentes base en `src/components/ui.tsx`. Sin estilos inline (la CSP los bloquea).

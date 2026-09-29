@@ -1,6 +1,6 @@
 // Service worker mínimo: guarda recursos estáticos y muestra una pantalla clara sin internet.
 // No guarda datos financieros en caché (las páginas siempre se piden al servidor).
-const VERSION = "v1";
+const VERSION = "v2";
 const STATIC_CACHE = `static-${VERSION}`;
 const OFFLINE_URL = "/offline.html";
 const PRECACHE = [OFFLINE_URL, "/icons/icon-192.png"];
@@ -47,4 +47,42 @@ self.addEventListener("fetch", (event) => {
       ),
     );
   }
+});
+
+// ---------------- Recordatorios (Web Push) ----------------
+
+self.addEventListener("push", (event) => {
+  let data = { title: "Mis Finanzas", body: "", url: "/", tag: undefined };
+  try {
+    data = { ...data, ...event.data.json() };
+  } catch {
+    if (event.data) data.body = event.data.text();
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      tag: data.tag,
+      lang: "es-MX",
+      data: { url: data.url },
+    }),
+  );
+});
+
+// Al tocar el aviso: abre (o enfoca) la app en la pantalla indicada.
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = new URL(event.notification.data?.url || "/", self.location.origin).href;
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((wins) => {
+      for (const w of wins) {
+        if (w.url.startsWith(self.location.origin) && "focus" in w) {
+          w.navigate(url);
+          return w.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
 });

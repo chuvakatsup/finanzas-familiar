@@ -57,6 +57,13 @@
       "when": 1790639501930,
       "tag": "0007_apoyos",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790657271193,
+      "tag": "0008_recordatorios",
+      "breakpoints": true
     }
   ]
 }

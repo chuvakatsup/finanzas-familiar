@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import { readDisplayPrefs } from "@/server/auth/display-prefs";
 import { setLetraAction, setTemaAction } from "@/server/actions/settings";
 import { Card, PageTitle } from "@/components/ui";
+import { PushSettings } from "@/components/push-settings";
+import { vapidPublicKey } from "@/server/services/push";
 
-export const metadata: Metadata = { title: "Letra y colores" };
+export const metadata: Metadata = { title: "Letra, colores y avisos" };
 
 const LETRAS = [
   { value: "normal", label: "Normal", cls: "text-lg" },
@@ -38,7 +40,12 @@ export default async function SettingsPage() {
   const { letra, tema } = await readDisplayPrefs();
   return (
     <>
-      <PageTitle subtitle="Se guarda y se aplica al momento.">Letra y colores</PageTitle>
+      <PageTitle subtitle="Se guarda y se aplica al momento.">Letra, colores y avisos</PageTitle>
+
+      <Card className="mb-5">
+        <h2 className="mb-3 text-2xl font-bold">🔔 Recordatorios en el celular</h2>
+        <PushSettings publicKey={vapidPublicKey()} />
+      </Card>
 
       <Card className="mb-5">
         <h2 className="mb-3 text-2xl font-bold">Tamaño de letra</h2>

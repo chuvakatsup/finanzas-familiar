@@ -3,7 +3,7 @@
 import { build } from "esbuild";
 
 await build({
-  entryPoints: ["scripts/migrate.ts", "scripts/create-admin.ts"],
+  entryPoints: ["scripts/migrate.ts", "scripts/create-admin.ts", "scripts/push-keys.mjs"],
   outdir: "dist-scripts",
   outExtension: { ".js": ".mjs" },
   bundle: true,

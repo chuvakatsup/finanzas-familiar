@@ -16,6 +16,7 @@ import {
   updateSupport,
 } from "@/server/services/support";
 import { updatePrefs } from "@/server/services/prefs";
+import { notifySupportSent } from "@/server/services/reminders";
 import { editSupportSchema, receiveSupportSchema, sendSupportSchema } from "@/lib/schemas/finance";
 import { type FormState, fieldErrors } from "@/lib/form-state";
 import { todayIso } from "@/domain/dates";
@@ -37,17 +38,22 @@ export async function sendSupportAction(_prev: FormState, formData: FormData): P
   });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
   const { repeat, ...input } = parsed.data;
-  let id: string;
+  let sent: Awaited<ReturnType<typeof sendSupport>> | null;
   try {
-    id = await getDb().transaction(async (t) => {
-      if (repeat === "no") return (await sendSupport(t, actor, input)).id;
-      // Recurrente: se programa y el primero se genera ya si su fecha es hoy o antes.
-      const schedule = await createSupportSchedule(t, actor, { ...input, frequency: repeat });
-      if (input.date <= todayIso()) return (await sendSupport(t, actor, input, schedule.id)).id;
-      return null;
-    }) ?? "";
+    sent = await getDb().transaction(async (t) => {
+      const scheduleId =
+        repeat === "no" ? null : (await createSupportSchedule(t, actor, { ...input, frequency: repeat })).id;
+      // Recurrente con fecha futura: solo se programa; el primero se genera solo en su fecha.
+      if (scheduleId && input.date > todayIso()) return null;
+      return sendSupport(t, actor, input, scheduleId);
+    });
   } catch (e) {
     return friendlyError(e);
+  }
+  const id = sent?.id ?? "";
+  if (sent) {
+    // Aviso inmediato en el celular de quien recibe (si lo tiene activado). Nunca rompe el envío.
+    await notifySupportSent(getDb(), sent).catch((e) => console.error("push apoyo", e));
   }
   refresh();
   redirect(id ? `/apoyos/${id}?enviado=1` : "/apoyos?programado=1");

@@ -20,6 +20,11 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       APP_URL: ${APP_URL:?Falta APP_URL en .env}
       COOKIE_SECURE: "true"
+      # Recordatorios push (opcionales; generar con: pnpm push:keys)
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+      CRON_SECRET: ${CRON_SECRET:-}
     # Solo en localhost: nadie de fuera llega sin pasar por Nginx.
     ports:
       - "127.0.0.1:${APP_HOST_PORT:-3020}:3000"
@@ -98,6 +103,30 @@ services:
     deploy:
       resources:
         limits: { cpus: "0.5", memory: 256M }
+    logging: *logging
+
+  # Pide a la app el recordatorio diario. Usa la imagen de herramientas; sin salida a internet.
+  cron:
+    image: finanzas-backup:latest
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+      backup:
+        condition: service_started
+    command: ["/usr/local/bin/reminders.sh"]
+    user: "${BACKUP_UID:-1000}:${BACKUP_UID:-1000}"
+    environment:
+      CRON_SECRET: ${CRON_SECRET:?Falta CRON_SECRET (genéralo con pnpm push:keys)}
+      REMINDER_TIME: ${REMINDER_TIME:-08:00}
+      TZ: America/Mazatlan
+    networks: [backend]
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    deploy:
+      resources:
+        limits: { cpus: "0.1", memory: 32M }
     logging: *logging
 
 networks:

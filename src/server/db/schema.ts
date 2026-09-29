@@ -554,3 +554,40 @@ export const supportTransfers = pgTable(
     check("support_people_chk", sql`${t.senderId} <> ${t.recipientId}`),
   ],
 );
+
+// ---------------------------------------------------------------------------
+// Fase 8: recordatorios push
+// ---------------------------------------------------------------------------
+
+/** Un celular/navegador que aceptó recibir recordatorios. */
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    userAgent: text("user_agent"),
+    failures: smallint("failures").notNull().default(0),
+    lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("push_endpoint_uq").on(t.endpoint), index("push_user_idx").on(t.userId)],
+);
+
+/** Avisos ya enviados (para no mandar el mismo dos veces). */
+export const notificationLog = pgTable(
+  "notification_log",
+  {
+    id: bigserial("id", { mode: "number" }).primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [uniqueIndex("notification_user_key_uq").on(t.userId, t.key)],
+);

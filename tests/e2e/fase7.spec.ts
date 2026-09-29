@@ -77,8 +77,11 @@ test("historial de apoyos y privacidad: un tercero no ve el apoyo", async ({ pag
   await rosa.getByLabel("Contraseña", { exact: true }).fill("frase-de-rosa-123");
   await rosa.getByRole("button", { name: "Entrar" }).click();
   await rosa.waitForURL("/");
-  const res = await rosa.goto(url!);
-  expect(res!.status()).toBe(404);
+  // (Con la pantalla de "Cargando…" la respuesta llega en partes: se revisa el contenido, no el código HTTP.)
+  await rosa.goto(url!);
+  await expect(rosa.getByRole("heading", { name: "No encontramos esta página" })).toBeVisible();
+  await expect(rosa.getByText("Enviaste a")).toHaveCount(0);
+  await expect(rosa.getByText("$1,500.00")).toHaveCount(0);
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(overflow).toBeLessThanOrEqual(0);

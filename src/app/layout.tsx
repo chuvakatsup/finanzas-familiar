@@ -34,6 +34,13 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       data-theme={tema === "claro" ? "light" : tema === "oscuro" ? "dark" : undefined}
     >
       <body className="min-h-full flex flex-col">
+        {/* Para teclado y lectores de pantalla: saltar directo al contenido. */}
+        <a
+          href="#contenido"
+          className="sr-only focus:not-sr-only focus:fixed focus:left-2 focus:top-2 focus:z-50 focus:rounded-xl focus:bg-primary focus:px-4 focus:py-3 focus:text-lg focus:font-semibold focus:text-on-primary"
+        >
+          Saltar al contenido
+        </a>
         {children}
         <ServiceWorkerRegister />
       </body>

@@ -22,7 +22,8 @@
     "db:studio": "drizzle-kit studio",
     "admin:create": "tsx --conditions=react-server --env-file-if-exists=.env.local scripts/create-admin.ts",
     "build:scripts": "node scripts/build-scripts.mjs",
-    "icons": "tsx scripts/generate-icons.ts"
+    "icons": "tsx scripts/generate-icons.ts",
+    "push:keys": "node scripts/push-keys.mjs"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.1",
@@ -32,14 +33,17 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "server-only": "^0.0.1",
+    "web-push": "3.6.7",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^22.20.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-push": "3.6.4",
     "drizzle-kit": "^0.31.11",
     "esbuild": "0.28.2",
     "eslint": "^9",

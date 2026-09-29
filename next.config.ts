@@ -16,8 +16,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
-  // Módulo nativo: se carga desde node_modules en vez de empaquetarse.
-  serverExternalPackages: ["@node-rs/argon2"],
+  // Se cargan desde node_modules en vez de empaquetarse (argon2 es nativo; web-push usa crypto de Node).
+  serverExternalPackages: ["@node-rs/argon2", "web-push"],
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

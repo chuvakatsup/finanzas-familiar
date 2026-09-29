@@ -3,7 +3,7 @@
 App web instalable en el celular (PWA) para llevar las finanzas de cada persona de la familia y responder de un vistazo: **¿me alcanza el dinero este mes?**
 
 - Next.js 16 + TypeScript + Tailwind · PostgreSQL 17 + Drizzle · pnpm
-- Docker Compose: `app`, `db` (sin puertos expuestos), `backup` (respaldos cifrados)
+- Docker Compose (producción): `app` (la web), `db` (sin puertos expuestos), `backup` (respaldos cifrados) y `cron` (recordatorio diario)
 - Nginx del VPS como proxy HTTPS hacia `127.0.0.1:3020`
 
 ---
@@ -11,6 +11,8 @@ App web instalable en el celular (PWA) para llevar las finanzas de cada persona 
 ## Desarrollo local
 
 Requisitos: Node 22+, pnpm 11 (`corepack enable`), Docker.
+
+En desarrollo **solo las bases de datos van en Docker** ([compose.dev.yml](compose.dev.yml)); la web corre con `pnpm dev` para ver los cambios al instante. La web en Docker es la de producción ([compose.yml](compose.yml)).
 
 ```bash
 pnpm install
@@ -50,12 +52,14 @@ El VPS ya está endurecido y tiene Docker y Nginx. El puerto 3000 está ocupado,
 git clone git@github.com:chuvakatsup/finanzas-familiar.git
 cd finanzas-familiar
 cp .env.example .env
-nano .env        # llenar APP_DOMAIN, APP_URL, POSTGRES_PASSWORD, BACKUP_AGE_RECIPIENT
+nano .env        # llenar APP_DOMAIN, APP_URL, POSTGRES_PASSWORD, BACKUP_AGE_RECIPIENT, VAPID_*, CRON_SECRET
 chmod 600 .env
 mkdir -p backups && chown 1000:1000 backups   # o el uid que pongas en BACKUP_UID
 ```
 
 Contraseña de BD: `openssl rand -hex 32` (solo letras y números, porque va dentro de una URL).
+
+**Llaves de recordatorios** (una sola vez): en tu computadora corre `pnpm push:keys` y copia las 3 líneas (`VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `CRON_SECRET`) al `.env` del VPS. Pon también `VAPID_SUBJECT=mailto:tu-correo`. Si no tienes el proyecto en tu computadora: genera el secreto con `openssl rand -hex 24` y pégalo en `CRON_SECRET=`, levanta, y genera las llaves con `docker compose exec app node scripts/push-keys.mjs`; después `docker compose up -d` otra vez.
 
 ### 2. Llave de cifrado de respaldos (age)
 
@@ -75,7 +79,7 @@ age-keygen -o finanzas-backup-key.txt
 
 ```bash
 docker compose up -d --build
-docker compose ps                        # app y db deben decir (healthy)
+docker compose ps                        # app y db (healthy); backup y cron (Up)
 curl -s 127.0.0.1:3020/api/health        # {"ok":true}
 ```
 
@@ -103,6 +107,18 @@ docker compose exec app node scripts/create-admin.mjs \
 Imprime un enlace (vale 24 h) para que el admin cree su contraseña desde el celular. Después, desde **Más → Mi familia**, el admin invita a los demás con un enlace que se puede mandar por WhatsApp.
 
 ¿Alguien olvidó su contraseña? El admin entra a **Más → Mi familia** y toca "Crear enlace para contraseña nueva".
+
+### 6. Recordatorios en el celular
+
+- Cada persona los activa en **Más → Letra, colores y avisos → Activar recordatorios**.
+- **Android:** funcionan en Chrome (mejor si la app está instalada).
+- **iPhone (iOS 16.4+):** primero instalar la app (Safari → Compartir → “Agregar a pantalla de inicio”) y activarlos abriéndola desde ese icono.
+- El servicio `cron` pide el aviso diario a las `REMINDER_TIME` (8:00 por defecto): pagos que vencen hoy o mañana, pendientes vencidos y la fecha límite de tarjetas. Los apoyos avisan al momento.
+- No se usa ninguna cuenta de Apple ni servicio de pago: es Web Push estándar con llaves VAPID propias.
+
+### 7. Probar en el celular real
+
+Sigue la lista de [docs/prueba-en-celular.md](docs/prueba-en-celular.md) con quien vaya a usarla.
 
 ### Actualizar
 

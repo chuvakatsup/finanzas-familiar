@@ -10,7 +10,7 @@ export default async function globalSetup() {
   const url = process.env.TEST_DATABASE_URL ?? "postgres://finanzas:finanzas@127.0.0.1:5434/finanzas_test";
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   await migrate(drizzle(sql), { migrationsFolder: "drizzle" });
-  await sql`truncate table support_transfers, support_schedules, loan_payments, loans, installment_purchases, budgets, scheduled_occurrences, scheduled_items, transactions, categories, accounts, audit_log, auth_attempts, password_reset_tokens, invitations, sessions, users, households restart identity cascade`;
+  await sql`truncate table notification_log, push_subscriptions, support_transfers, support_schedules, loan_payments, loans, installment_purchases, budgets, scheduled_occurrences, scheduled_items, transactions, categories, accounts, audit_log, auth_attempts, password_reset_tokens, invitations, sessions, users, households restart identity cascade`;
   const [h] = await sql`insert into households (name) values ('Familia E2E') returning id`;
   for (const u of Object.values(E2E_USERS)) {
     const [user] = await sql`insert into users (household_id, name, email, password_hash, role)
