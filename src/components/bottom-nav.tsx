@@ -21,7 +21,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Principal"
-      className="fixed inset-x-0 bottom-0 z-10 border-t border-border bg-surface pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-x-0 bottom-0 z-10 transform-gpu border-t border-border bg-surface pb-[env(safe-area-inset-bottom)] will-change-transform"
     >
       <ul className="mx-auto grid max-w-xl grid-cols-4">
         {items.map((item) => {
